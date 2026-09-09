@@ -93,6 +93,20 @@ Tiempo real:
 
 ---
 
+# UI (apps/web)
+
+Todo el trabajo de interfaz web debe seguir el sistema de diseño en:
+
+apps/web/DESIGN_SYSTEM.md
+
+Reglas mínimas:
+- Usar los tokens y clases reutilizables de apps/web/app/globals.css.
+- Texto legible: nunca gris claro sobre blanco (usar tokens text-muted-foreground).
+- No usar emojis como iconos de UI (usar components/icons.tsx).
+- Reutilizar components/ProductCard.tsx en vez de duplicar tarjetas.
+
+---
+
 # Subastas
 
 Las subastas utilizan comunicación en tiempo real.
