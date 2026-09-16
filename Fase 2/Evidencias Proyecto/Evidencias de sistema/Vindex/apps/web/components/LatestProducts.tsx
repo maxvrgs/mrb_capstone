@@ -31,6 +31,14 @@ const products = [
     seller: "Arte & Diseño",
     image: "https://picsum.photos/seed/vx-tazas/400/400",
   },
+  {
+    id: 5,
+    name: "Botas Demonias",
+    price: "49.990",
+    discount: "-10%",
+    seller: "Demonias Chile",
+    image: "https://picsum.photos/seed/vx-tazas/400/400",
+  },
 ];
 
 export default function LatestProducts() {

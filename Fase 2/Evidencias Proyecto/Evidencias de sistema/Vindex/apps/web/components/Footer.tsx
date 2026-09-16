@@ -62,7 +62,7 @@ export default function Footer() {
           {/* Marca */}
           <div className="md:col-span-4">
             <Link href="/" className="flex items-center gap-2.5">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-base font-extrabold">
+              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-linear-to-br from-brand-500 to-brand-700 text-base font-extrabold">
                 V
               </span>
               <span className="text-lg font-extrabold tracking-tight">Vindex</span>

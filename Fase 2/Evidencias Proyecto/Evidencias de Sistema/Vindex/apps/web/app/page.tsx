@@ -11,11 +11,8 @@ import Footer from "@/components/Footer";
 export default function Home() {
   return (
     <main className="min-h-screen bg-background">
-      {/* Navbar principal */}
-      <Navbar />
-
-      {/* Navegación secundaria */}
-      <SecondaryNavbar />
+      {/* Navbar principal(en layout.tsx) */}
+      {/* Navegación secundaria(en layout.tsx) */}
 
       {/* Productos destacados */}
       <FeaturedProducts />

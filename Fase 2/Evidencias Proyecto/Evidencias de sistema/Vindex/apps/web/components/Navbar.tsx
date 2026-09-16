@@ -37,7 +37,8 @@ export default function Navbar() {
 
   return (
     <header className="sticky top-0 z-50">
-      {/* Barra de confianza (solo escritorio) */}
+      {/* Barra de confianza 
+
       <div className="hidden bg-foreground text-white lg:block">
         <div className="container-site flex h-9 items-center justify-between text-xs">
           <p className="flex items-center gap-1.5 font-medium text-white/80">
@@ -55,24 +56,19 @@ export default function Navbar() {
           </div>
         </div>
       </div>
-
+      
+      */}
       {/* Cabecera principal */}
       <div className="border-b border-border bg-surface/95 backdrop-blur">
         <div className="container-site">
           <div className="flex h-16 items-center gap-3 sm:h-20 sm:gap-5">
             {/* Logo */}
             <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Vindex, ir al inicio">
-              <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-brand-500 to-brand-700 text-base font-extrabold text-white shadow-sm">
-                V
-              </span>
-              <span className="flex flex-col leading-none">
-                <span className="text-xl font-extrabold tracking-tight text-foreground">
-                  Vindex
-                </span>
-                <span className="text-[10px] font-bold uppercase tracking-[0.24em] text-brand-600">
-                  Marketplace
-                </span>
-              </span>
+              <img 
+                src="logo.png" 
+                alt="Logo de Vindex" 
+                className="mx-auto h-20 w-auto object-contain" 
+            />
             </Link>
 
             {/* Buscador (escritorio) */}
@@ -81,7 +77,7 @@ export default function Navbar() {
             {/* Acciones */}
             <div className="ml-auto flex items-center gap-1 sm:gap-2">
               <Link
-                href="/"
+                href="/auth"
                 className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-brand-50 hover:text-brand-700 lg:flex"
               >
                 <IconUser className="h-5 w-5" />
