@@ -41,7 +41,7 @@ export function LoginForm({
                       fill="currentColor"
                     />
                   </svg>
-                  Login with Apple
+                  Continuar con Apple
                 </Button>
                 <Button variant="outline" type="button">
                   <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24">
@@ -50,14 +50,14 @@ export function LoginForm({
                       fill="currentColor"
                     />
                   </svg>
-                  Login with Google
+                  Continuar con Google
                 </Button>
               </Field>
               <FieldSeparator className="*:data-[slot=field-separator-content]:bg-card">
                 o continua con
               </FieldSeparator>
               <Field>
-                <FieldLabel htmlFor="email">Correo</FieldLabel>
+                <FieldLabel htmlFor="email">Email</FieldLabel>
                 <Input
                   id="email"
                   type="email"
@@ -80,7 +80,7 @@ export function LoginForm({
               <Field>
                 <Button type="submit">Iniciar sesión</Button>
                 <FieldDescription className="text-center">
-                  ¿No tienes una cuenta? <a href="#">Registrate</a>
+                  ¿No tienes una cuenta? <a href="/signup">Registrate</a>
                 </FieldDescription>
               </Field>
             </FieldGroup>

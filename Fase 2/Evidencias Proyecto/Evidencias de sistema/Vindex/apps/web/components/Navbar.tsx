@@ -77,7 +77,7 @@ export default function Navbar() {
             {/* Acciones */}
             <div className="ml-auto flex items-center gap-1 sm:gap-2">
               <Link
-                href="/auth"
+                href="/login"
                 className="hidden items-center gap-2 rounded-full px-3 py-2 text-sm font-semibold text-foreground transition hover:bg-brand-50 hover:text-brand-700 lg:flex"
               >
                 <IconUser className="h-5 w-5" />
