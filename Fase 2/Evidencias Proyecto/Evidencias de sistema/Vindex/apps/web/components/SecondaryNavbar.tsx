@@ -25,7 +25,9 @@ export default function SecondaryNavbar() {
         </Link>
 
         <Link href="/ofertas" className="nav-tab text-accent-600 hover:text-accent-700">
+          {/*
           <IconBolt className="h-3.5 w-3.5" />
+          */}
           Ofertas
         </Link>
       </div>
