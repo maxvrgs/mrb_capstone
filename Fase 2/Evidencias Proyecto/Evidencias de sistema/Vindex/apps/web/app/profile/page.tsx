@@ -93,7 +93,7 @@ export default function ProfilePage() {
               <Button
                 variant={activeRole === "buyer" ? "default" : "ghost"}
                 className={`w-full justify-start ${
-                  activeRole === "buyer" ? "bg-brand-400 hover:bg-brand-600 text-white" : "text-slate-300 hover:bg-brand-800"
+                  activeRole === "buyer" ? "bg-brand-400 hover:bg-brand-600 text-white" : "text-slate-800 hover:bg-brand-800 hover:text-white"
                 }`}
                 onClick={() => setActiveRole("buyer")}
               >
@@ -103,7 +103,7 @@ export default function ProfilePage() {
               <Button
                 variant={activeRole === "seller" ? "default" : "ghost"}
                 className={`w-full justify-start ${
-                  activeRole === "seller" ? "bg-brand-400 hover:bg-brand-600 text-white" : "text-slate-300 hover:bg-brand-800"
+                  activeRole === "seller" ? "bg-brand-400 hover:bg-brand-600 text-white" : "text-slate-800 hover:bg-brand-800 hover:text-white"
                 }`}
                 onClick={() => setActiveRole("seller")}
               >
@@ -119,10 +119,10 @@ export default function ProfilePage() {
           {activeRole === "buyer" && (
             <form onSubmit={handleSaveProfile} className="space-y-6">
               {/* Información Personal */}
-              <Card className="border-slate-800 bg-slate-900/60 backdrop-blur">
+              <Card className="border-slate-800 bg-slate-50 backdrop-blur">
                 <CardHeader>
-                  <CardTitle className="text-lg text-white">Datos Personales</CardTitle>
-                  <CardDescription className="text-slate-400">
+                  <CardTitle className="text-lg text-slate-800">Datos Personales</CardTitle>
+                  <CardDescription className="text-slate-600">
                     Modifica tu información básica de contacto en la plataforma.
                   </CardDescription>
                 </CardHeader>
@@ -133,7 +133,7 @@ export default function ProfilePage() {
                       id="firstName"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="border-slate-800 bg-slate-950 text-white"
+                      className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                     />
                   </div>
                   <div className="space-y-2">
@@ -142,16 +142,16 @@ export default function ProfilePage() {
                       id="lastName"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="border-slate-800 bg-slate-950 text-white"
+                      className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                     />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Dirección de Envío */}
-              <Card className="border-slate-800 bg-slate-900/60 backdrop-blur">
+              <Card className="border-slate-800 bg-slate-50 backdrop-blur">
                 <CardHeader>
-                  <CardTitle className="text-lg text-white">Dirección de Despacho</CardTitle>
+                  <CardTitle className="text-lg text-bg-slate-700">Dirección de Despacho</CardTitle>
                   <CardDescription className="text-slate-400">
                     Utilizada para el cálculo de envíos y entregas.
                   </CardDescription>
@@ -165,7 +165,7 @@ export default function ProfilePage() {
                         placeholder="Metropolitana"
                         value={region}
                         onChange={(e) => setRegion(e.target.value)}
-                        className="border-slate-800 bg-slate-950 text-white"
+                        className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                       />
                     </div>
                     <div className="space-y-2">
@@ -175,7 +175,7 @@ export default function ProfilePage() {
                         placeholder="Santiago"
                         value={ciudad}
                         onChange={(e) => setCiudad(e.target.value)}
-                        className="border-slate-800 bg-slate-950 text-white"
+                        className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                       />
                     </div>
                     <div className="space-y-2">
@@ -185,7 +185,7 @@ export default function ProfilePage() {
                         placeholder="Providencia"
                         value={comuna}
                         onChange={(e) => setComuna(e.target.value)}
-                        className="border-slate-800 bg-slate-950 text-white"
+                        className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                       />
                     </div>
                   </div>
@@ -197,7 +197,7 @@ export default function ProfilePage() {
                       placeholder="Av. Providencia 1234, Depto 402"
                       value={calle}
                       onChange={(e) => setCalle(e.target.value)}
-                      className="border-slate-800 bg-slate-950 text-white"
+                      className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                     />
                   </div>
 
@@ -208,11 +208,11 @@ export default function ProfilePage() {
                       placeholder="Dejar en conserjería, timbre no funciona, etc."
                       value={observacion}
                       onChange={(e) => setObservacion(e.target.value)}
-                      className="border-slate-800 bg-slate-950 text-white"
+                      className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                     />
                   </div>
 
-                  <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white">
+                  <Button type="submit" className="bg-brand-600 hover:bg-brand-800 text-white">
                     Guardar Cambios
                   </Button>
                 </CardContent>
@@ -220,11 +220,11 @@ export default function ProfilePage() {
             </form>
           )}
 
-          {/* MODO VENDEDOR: Lista de Tiendas, Dashboard y Productos */}
+          {/* ´Perfil Vendedor */}
           {activeRole === "seller" && (
             <div className="space-y-6">
               {stores.length === 0 ? (
-                <Card className="border-dashed border-slate-800 bg-slate-900/30 p-8 text-center">
+                <Card className="border-dashed border-slate-800 bg-slate-700/30 p-8 text-center">
                   <h3 className="text-lg font-semibold text-white">Aún no tienes tiendas creadas</h3>
                   <p className="mt-1 text-sm text-slate-400">
                     Comienza a vender o crear subastas creando tu primer espacio comercial.
@@ -233,13 +233,13 @@ export default function ProfilePage() {
                     onClick={() => setShowCreateStore(true)}
                     className="mt-4 bg-emerald-600 hover:bg-emerald-500 text-white"
                   >
-                    Crear mi Primera Tienda
+                    Crear Primera Tienda
                   </Button>
                 </Card>
               ) : (
                 <>
                   {stores.map((store) => (
-                    <Card key={store.id} className="border-slate-800 bg-slate-900/60 backdrop-blur">
+                    <Card key={store.id} className="border-slate-800 bg-slate-50 backdrop-blur">
                       <CardHeader className="flex flex-row items-start gap-4">
                         <img
                           src={store.image}
@@ -247,8 +247,8 @@ export default function ProfilePage() {
                           className="h-16 w-16 rounded-lg object-cover border border-slate-800"
                         />
                         <div className="flex-1">
-                          <CardTitle className="text-xl text-white">{store.name}</CardTitle>
-                          <CardDescription className="text-slate-400 mt-1">
+                          <CardTitle className="text-xl text-slate-700">{store.name}</CardTitle>
+                          <CardDescription className="text-slate-600 mt-1">
                             {store.description}
                           </CardDescription>
                         </div>
@@ -257,43 +257,43 @@ export default function ProfilePage() {
                       <CardContent className="space-y-6">
                         {/* Mini Dashboard de Métricas */}
                         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          <div className="rounded-lg bg-slate-950 p-3 border border-slate-800/80">
-                            <span className="text-xs text-slate-400">Ventas</span>
-                            <p className="text-xl font-bold text-white">{store.stats.sales}</p>
+                          <div className="rounded-lg bg-slate-200 p-3 border border-slate-800/80">
+                            <span className="text-xs text-slate-600">Ventas</span>
+                            <p className="text-xl font-bold text-slate-700">{store.stats.sales}</p>
                           </div>
-                          <div className="rounded-lg bg-slate-950 p-3 border border-slate-800/80">
-                            <span className="text-xs text-slate-400">Ganancias</span>
+                          <div className="rounded-lg bg-slate-200 p-3 border border-slate-800/80">
+                            <span className="text-xs text-slate-600">Ganancias</span>
                             <p className="text-xl font-bold text-emerald-400">
                               ${store.stats.earnings.toLocaleString("es-CL")}
                             </p>
                           </div>
-                          <div className="rounded-lg bg-slate-950 p-3 border border-slate-800/80">
-                            <span className="text-xs text-slate-400">En Stock</span>
-                            <p className="text-xl font-bold text-white">{store.stats.inStock}</p>
+                          <div className="rounded-lg bg-slate-200 p-3 border border-slate-800/80">
+                            <span className="text-xs text-slate-600">En Stock</span>
+                            <p className="text-xl font-bold text-slate-700">{store.stats.inStock}</p>
                           </div>
-                          <div className="rounded-lg bg-slate-950 p-3 border border-slate-800/80">
-                            <span className="text-xs text-slate-400">Visitas</span>
-                            <p className="text-xl font-bold text-white">{store.stats.visits}</p>
+                          <div className="rounded-lg bg-slate-200 p-3 border border-slate-800/80">
+                            <span className="text-xs text-slate-600">Visitas</span>
+                            <p className="text-xl font-bold text-slate-700">{store.stats.visits}</p>
                           </div>
                         </div>
 
                         {/* Lista de Productos de la Tienda */}
                         <div>
-                          <h4 className="text-sm font-semibold text-slate-200 mb-3">
+                          <h4 className="text-sm font-semibold text-slate-700 mb-3">
                             Productos Publicados ({store.products.length})
                           </h4>
                           {store.products.length === 0 ? (
-                            <p className="text-xs text-slate-400 italic">No hay productos en esta tienda.</p>
+                            <p className="text-xs text-slate-700 italic">No hay productos en esta tienda.</p>
                           ) : (
-                            <div className="divide-y divide-slate-800 rounded-md border border-slate-800 bg-slate-950">
+                            <div className="divide-y divide-slate-800 rounded-md border border-slate-800 bg-slate-200">
                               {store.products.map((prod) => (
                                 <div key={prod.id} className="flex items-center justify-between p-3 text-sm">
-                                  <span className="font-medium text-slate-200">{prod.name}</span>
+                                  <span className="font-medium text-slate-700">{prod.name}</span>
                                   <div className="flex items-center gap-3">
-                                    <Badge variant="outline" className="border-slate-700 text-slate-400">
+                                    <Badge variant="outline" className="border-slate-700 text-slate-600">
                                       Stock: {prod.stock}
                                     </Badge>
-                                    <span className="font-semibold text-white">
+                                    <span className="font-semibold text-slate-700">
                                       ${prod.price.toLocaleString("es-CL")}
                                     </span>
                                   </div>
@@ -312,9 +312,9 @@ export default function ProfilePage() {
                       <Button
                         onClick={() => setShowCreateStore(true)}
                         variant="outline"
-                        className="w-full border-slate-800 text-slate-200 hover:bg-slate-800"
+                        className="w-full border-slate-800 text-slate-700 hover:bg-slate-300"
                       >
-                        + Crear Otra Tienda
+                        + Crear otra Tienda
                       </Button>
                     )}
                   </div>
@@ -323,9 +323,9 @@ export default function ProfilePage() {
 
               {/* Formulario Desplegable para Crear Tienda */}
               {showCreateStore && (
-                <Card className="border-emerald-600/50 bg-slate-900/90">
+                <Card className="border-emerald-600/50 bg-slate-50">
                   <CardHeader>
-                    <CardTitle className="text-base text-white">Nueva Tienda</CardTitle>
+                    <CardTitle className="text-base text-slate-700">Nueva Tienda</CardTitle>
                     <CardDescription className="text-slate-400">
                       Configura el nombre y la reseña de tu nuevo espacio comercial.
                     </CardDescription>
@@ -339,7 +339,7 @@ export default function ProfilePage() {
                           placeholder="Ej: Joyería Artesanal Sol"
                           value={newStoreName}
                           onChange={(e) => setNewStoreName(e.target.value)}
-                          className="border-slate-800 bg-slate-950 text-white"
+                          className="border-slate-800 bg-slate-50 text-slate-500"
                           required
                         />
                       </div>
@@ -350,7 +350,7 @@ export default function ProfilePage() {
                           placeholder="Describe lo que vendes o los remates que harás..."
                           value={newStoreDesc}
                           onChange={(e) => setNewStoreDesc(e.target.value)}
-                          className="border-slate-800 bg-slate-950 text-white"
+                          className="border-slate-800 bg-slate-50 text-slate-500"
                         />
                       </div>
                       <div className="flex gap-2 justify-end">
@@ -358,11 +358,11 @@ export default function ProfilePage() {
                           type="button"
                           variant="ghost"
                           onClick={() => setShowCreateStore(false)}
-                          className="text-slate-400"
+                          className="text-slate-600 border-slate-500"
                         >
                           Cancelar
                         </Button>
-                        <Button type="submit" className="bg-emerald-600 hover:bg-emerald-500 text-white">
+                        <Button type="submit" className="bg-brand-600 hover:bg-brand-800 text-white">
                           Guardar Tienda
                         </Button>
                       </div>
