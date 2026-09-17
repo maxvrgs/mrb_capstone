@@ -68,7 +68,7 @@ export default function Navbar() {
                 src="logo.png" 
                 alt="Logo de Vindex" 
                 className="mx-auto h-20 w-auto object-contain" 
-            />
+             />
             </Link>
 
             {/* Buscador (escritorio) */}
