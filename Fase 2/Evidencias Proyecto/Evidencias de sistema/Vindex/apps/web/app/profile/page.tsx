@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
+import { createClient } from "@/lib/supabase/client";
 import {
   Card,
   CardContent,
@@ -15,12 +16,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 export default function ProfilePage() {
+  const supabase = createClient()
   // Estado para alternar entre perfil de Comprador y Vendedor
   const [activeRole, setActiveRole] = useState<"buyer" | "seller">("buyer");
 
   // Estados de datos personales
-  const [firstName, setFirstName] = useState("Constanza");
-  const [lastName, setLastName] = useState("Pérez");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
 
   // Estados de dirección
   const [region, setRegion] = useState("");
