@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { createClient } from "@/lib/supabase/client";
 import {
@@ -16,13 +17,18 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 
 export default function ProfilePage() {
-  const supabase = createClient()
+  const router = useRouter();
+  const [supabase] = useState(createClient);
   // Estado para alternar entre perfil de Comprador y Vendedor
   const [activeRole, setActiveRole] = useState<"buyer" | "seller">("buyer");
 
   // Estados de datos personales
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
+  const [email, setEmail] = useState("");
+  const [profileLoading, setProfileLoading] = useState(true);
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [profileError, setProfileError] = useState<string | null>(null);
 
   // Estados de dirección
   const [region, setRegion] = useState("");
@@ -51,9 +57,65 @@ export default function ProfilePage() {
   const [newStoreName, setNewStoreName] = useState("");
   const [newStoreDesc, setNewStoreDesc] = useState("");
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  useEffect(() => {
+    let isCurrent = true;
+
+    const loadProfile = async () => {
+      const { data: { user }, error } = await supabase.auth.getUser();
+
+      if (!isCurrent) return;
+
+      if (error || !user) {
+        router.replace("/login");
+        return;
+      }
+
+      const metadata = user.user_metadata ?? {};
+      const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
+      const nameParts = fullName.split(/\s+/);
+
+      setEmail(user.email ?? "");
+      setFirstName(typeof metadata.first_name === "string" ? metadata.first_name : nameParts[0] ?? "");
+      setLastName(typeof metadata.last_name === "string" ? metadata.last_name : nameParts.slice(1).join(" "));
+      setRegion(typeof metadata.region === "string" ? metadata.region : "");
+      setCiudad(typeof metadata.ciudad === "string" ? metadata.ciudad : "");
+      setComuna(typeof metadata.comuna === "string" ? metadata.comuna : "");
+      setCalle(typeof metadata.calle === "string" ? metadata.calle : "");
+      setObservacion(typeof metadata.observacion === "string" ? metadata.observacion : "");
+      setProfileLoading(false);
+    };
+
+    void loadProfile();
+
+    return () => {
+      isCurrent = false;
+    };
+  }, [router, supabase]);
+
+  const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    console.log("Guardar datos en BD:", { firstName, lastName, region, ciudad, comuna, calle, observacion });
+    setProfileMessage(null);
+    setProfileError(null);
+
+    const { error } = await supabase.auth.updateUser({
+      data: {
+        full_name: [firstName, lastName].filter(Boolean).join(" "),
+        first_name: firstName,
+        last_name: lastName,
+        region,
+        ciudad,
+        comuna,
+        calle,
+        observacion,
+      },
+    });
+
+    if (error) {
+      setProfileError(error.message);
+      return;
+    }
+
+    setProfileMessage("Tus datos se guardaron correctamente.");
   };
 
   const handleCreateStore = (e: React.FormEvent) => {
@@ -84,7 +146,15 @@ export default function ProfilePage() {
         </p>
       </div>
 
-      <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
+      {profileLoading ? (
+        <p role="status" className="text-sm text-slate-600">Cargando tu perfil...</p>
+      ) : (
+        <p className="mb-6 text-sm text-slate-700">Sesión iniciada como {email}</p>
+      )}
+      {profileError && <p role="alert" className="mb-4 text-sm text-red-700">{profileError}</p>}
+      {profileMessage && <p role="status" className="mb-4 text-sm text-emerald-700">{profileMessage}</p>}
+
+      {!profileLoading && <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
         {/* COLUMNA IZQUIERDA: Selector de Rol / Modo */}
         <div className="space-y-4 md:col-span-1">
           <Card className="border-slate-800 bg-slate-50 backdrop-blur">
@@ -375,7 +445,7 @@ export default function ProfilePage() {
             </div>
           )}
         </div>
-      </div>
+      </div>}
     </div>
   );
 }

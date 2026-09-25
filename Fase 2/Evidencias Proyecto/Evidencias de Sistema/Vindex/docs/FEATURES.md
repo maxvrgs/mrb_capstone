@@ -2,11 +2,12 @@
 
 ## Autenticación
 
-Status: 🟢 Implementado
+Status: 🟡 En desarrollo
 
-- [] Registro
-- [] Login
-- [] Logout
+- [x] Registro
+- [x] Login con correo y contraseña
+- [x] Cargar y guardar datos del perfil en metadatos del usuario de Supabase Auth
+- [x] Logout
 - [ ] Recuperación de contraseña
 - [ ] KYC
 
