@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { ImagePlus, UploadCloud, X } from "lucide-react";
@@ -20,6 +20,102 @@ import { createClient } from "@/lib/supabase/client";
 type SelectedImage = {
 	file: File;
 	previewUrl: string;
+};
+
+const SelectedImageList = memo(function SelectedImageList({
+	images,
+	onRemove,
+}: {
+	images: SelectedImage[];
+	onRemove: (previewUrl: string) => void;
+}) {
+	return (
+		<ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
+			{images.map((image) => (
+				<li key={image.previewUrl} className="relative aspect-square overflow-hidden rounded-md border border-border">
+					<img src={image.previewUrl} alt={image.file.name} decoding="async" className="h-full w-full object-cover" />
+					<button type="button" aria-label={`Quitar ${image.file.name}`} title="Quitar imagen" onClick={() => onRemove(image.previewUrl)} className="absolute right-1 top-1 rounded-full bg-surface p-1 text-foreground shadow hover:text-brand-700">
+						<X className="h-4 w-4" aria-hidden="true" />
+					</button>
+				</li>
+			))}
+		</ul>
+	);
+});
+
+const ProductImagePreview = memo(function ProductImagePreview({ images }: { images: SelectedImage[] }) {
+	return (
+		<>
+			<div className="aspect-4/3 overflow-hidden rounded-lg bg-muted">
+				{images[0] ? (
+					<img src={images[0].previewUrl} alt={images[0].file.name} decoding="async" className="h-full w-full object-cover" />
+				) : (
+					<div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
+						<ImagePlus className="h-8 w-8" aria-hidden="true" />
+						<span className="text-sm">Vista previa de imagen</span>
+					</div>
+				)}
+			</div>
+			{images.length > 1 && (
+				<div className="mt-2 grid grid-cols-4 gap-2">
+					{images.slice(1).map((image) => (
+						<img key={image.previewUrl} src={image.previewUrl} alt={image.file.name} decoding="async" className="aspect-square w-full rounded-md object-cover" />
+					))}
+				</div>
+			)}
+		</>
+	);
+});
+
+const convertImageToWebp = async (file: File): Promise<Blob> => {
+	const bitmap = await createImageBitmap(file);
+	try {
+		const scale = Math.min(1, 1200 / bitmap.width, 1200 / bitmap.height);
+		const canvas = document.createElement("canvas");
+		canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+		canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+		const context = canvas.getContext("2d");
+		if (!context) throw new Error("No se pudo iniciar Canvas para procesar la imagen.");
+		context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+
+		return await new Promise<Blob>((resolve, reject) => {
+			canvas.toBlob(
+				(blob) => blob ? resolve(blob) : reject(new Error("No se pudo convertir la imagen a WebP.")),
+				"image/webp",
+				0.8,
+			);
+		});
+	} finally {
+		bitmap.close();
+	}
+};
+
+const uploadProductImages = async (
+	supabase: ReturnType<typeof createClient>,
+	files: File[],
+	userId: string,
+	productId: number,
+	onImageError: (message: string) => void,
+): Promise<string[]> => {
+	const imageUrls: string[] = [];
+
+	for (const file of files) {
+		try {
+			const webpImage = await convertImageToWebp(file);
+			const filePath = `${userId}/${productId || "temp"}/${crypto.randomUUID()}.webp`;
+			const { error } = await supabase.storage
+				.from("product-images")
+				.upload(filePath, webpImage, { contentType: "image/webp" });
+
+			if (error) throw new Error(error.message);
+			imageUrls.push(supabase.storage.from("product-images").getPublicUrl(filePath).data.publicUrl);
+		} catch (error) {
+			const reason = error instanceof Error ? error.message : "Error desconocido";
+			onImageError(`${file.name}: ${reason}`);
+		}
+	}
+
+	return imageUrls;
 };
 
 const toSlug = (value: string) =>
@@ -107,11 +203,11 @@ export default function SellProductPage() {
 		setSelectedImages((currentImages) => [...currentImages, ...images]);
 	};
 
-	const removeImage = (previewUrl: string) => {
+	const removeImage = useCallback((previewUrl: string) => {
 		URL.revokeObjectURL(previewUrl);
 		imagePreviewUrls.current.delete(previewUrl);
 		setSelectedImages((currentImages) => currentImages.filter((image) => image.previewUrl !== previewUrl));
-	};
+	}, []);
 
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
@@ -119,56 +215,75 @@ export default function SellProductPage() {
 		setErrorMessage(null);
 		setSuccessMessage(null);
 
-		const { data: { user }, error: authError } = await supabase.auth.getUser();
-		if (authError || !user) {
-			router.replace("/login?next=%2Fvender");
+		try {
+			const { data: { user }, error: authError } = await supabase.auth.getUser();
+			if (authError || !user) {
+				router.replace("/login?next=%2Fvender");
+				return;
+			}
+
+			const productSlug = slug || `${toSlug(name)}-${createSlugSuffix()}`;
+			const { data: product, error: productError } = await supabase.from("products").insert({
+				seller_id: user.id,
+				store_id: storeId ? Number(storeId) : null,
+				category_id: categoryId ? Number(categoryId) : null,
+				name: name.trim(),
+				slug: productSlug,
+				description: description.trim() || null,
+				price: Number(price),
+				stock: Number(stock),
+				condition,
+				status: isPublished,
+				images: [],
+				sale_type: isAuction ? "auction" : "direct",
+				is_auction: isAuction,
+				shipping_available: shippingAvailable,
+			}).select("id").single();
+
+			if (productError) throw new Error(productError.message);
+
+			const imageErrors: string[] = [];
+			const imageUrls = await uploadProductImages(
+				supabase,
+				selectedImages.map(({ file }) => file),
+				user.id,
+				product.id,
+				(message) => imageErrors.push(message),
+			);
+
+			if (imageUrls.length > 0) {
+				const { error: imagesUpdateError } = await supabase
+					.from("products")
+					.update({ images: imageUrls })
+					.eq("id", product.id);
+				if (imagesUpdateError) imageErrors.push(`No se pudieron guardar las URLs en el producto: ${imagesUpdateError.message}`);
+			}
+
+			setSuccessMessage(imageErrors.length > 0
+				? "El producto se publicó, pero algunas imágenes no pudieron procesarse."
+				: "El producto se publicó correctamente.");
+			if (imageErrors.length > 0) setErrorMessage(imageErrors.join(" "));
+			setName("");
+			setSlugSuffix(createSlugSuffix());
+			setDescription("");
+			setPrice("");
+			setStock("1");
+			setCondition("Nuevo");
+			setCategoryId("");
+			setStoreId("");
+			selectedImages.forEach(({ previewUrl }) => {
+				URL.revokeObjectURL(previewUrl);
+				imagePreviewUrls.current.delete(previewUrl);
+			});
+			setSelectedImages([]);
+			setIsAuction(false);
+			setShippingAvailable(true);
+			setIsPublished(true);
+		} catch (error) {
+			setErrorMessage(error instanceof Error ? error.message : "No se pudo publicar el producto.");
+		} finally {
 			setSaving(false);
-			return;
 		}
-
-		const productSlug = slug || `${toSlug(name)}-${createSlugSuffix()}`;
-
-		const { error } = await supabase.from("products").insert({
-			seller_id: user.id,
-			store_id: storeId ? Number(storeId) : null,
-			category_id: categoryId ? Number(categoryId) : null,
-			name: name.trim(),
-			slug: productSlug,
-			description: description.trim() || null,
-			price: Number(price),
-			stock: Number(stock),
-			condition,
-			status: isPublished,
-			images: [],
-			sale_type: isAuction ? "auction" : "direct",
-			is_auction: isAuction,
-			shipping_available: shippingAvailable,
-		});
-
-		setSaving(false);
-
-		if (error) {
-			setErrorMessage(error.message);
-			return;
-		}
-
-		setSuccessMessage("El producto se publicó correctamente.");
-		setName("");
-		setSlugSuffix(createSlugSuffix());
-		setDescription("");
-		setPrice("");
-		setStock("1");
-		setCondition("Nuevo");
-		setCategoryId("");
-		setStoreId("");
-		selectedImages.forEach(({ previewUrl }) => {
-			URL.revokeObjectURL(previewUrl);
-			imagePreviewUrls.current.delete(previewUrl);
-		});
-		setSelectedImages([]);
-		setIsAuction(false);
-		setShippingAvailable(true);
-		setIsPublished(true);
 	};
 
 	if (!authorized) {
@@ -296,16 +411,7 @@ export default function SellProductPage() {
 										</Button>
 									</div>
 									{selectedImages.length > 0 && (
-										<ul className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-5">
-											{selectedImages.map((image) => (
-												<li key={image.previewUrl} className="relative aspect-square overflow-hidden rounded-md border border-border">
-													<img src={image.previewUrl} alt={image.file.name} className="h-full w-full object-cover" />
-													<button type="button" aria-label={`Quitar ${image.file.name}`} title="Quitar imagen" onClick={() => removeImage(image.previewUrl)} className="absolute right-1 top-1 rounded-full bg-surface p-1 text-foreground shadow hover:text-brand-700">
-														<X className="h-4 w-4" aria-hidden="true" />
-													</button>
-												</li>
-											))}
-										</ul>
+										<SelectedImageList images={selectedImages} onRemove={removeImage} />
 									)}
 								</div>
 
@@ -343,23 +449,7 @@ export default function SellProductPage() {
 							<CardDescription></CardDescription>
 						</CardHeader>
 						<CardContent>
-							<div className="aspect-4/3 overflow-hidden rounded-lg bg-muted">
-								{selectedImages[0] ? (
-									<img src={selectedImages[0].previewUrl} alt={name ? `Imagen de ${name}` : selectedImages[0].file.name} className="h-full w-full object-cover" />
-								) : (
-								<div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
-									<ImagePlus className="h-8 w-8" aria-hidden="true" />
-									<span className="text-sm">Vista previa de imagen</span>
-								</div>
-								)}
-							</div>
-							{selectedImages.length > 1 && (
-								<div className="mt-2 grid grid-cols-4 gap-2">
-									{selectedImages.slice(1).map((image) => (
-										<img key={image.previewUrl} src={image.previewUrl} alt={image.file.name} className="aspect-square w-full rounded-md object-cover" />
-									))}
-								</div>
-							)}
+							<ProductImagePreview images={selectedImages} />
 							<div className="mt-5 space-y-3">
 								<div className="flex flex-wrap gap-2">
 									<span className="badge badge-soft">{isAuction ? "Subasta" : "Venta"}</span>

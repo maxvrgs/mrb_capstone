@@ -12,10 +12,35 @@ create table public.products (
   status boolean null,
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone null default now(),
-  images json null,
+  images text[] null,
   sale_type text null,
   is_auction boolean null,
   shipping_available boolean null,
   constraint products_pkey primary key (id)
 ) TABLESPACE pg_default;
 
+BUCKET NAME:
+
+product-images
+
+La columna `images` almacena las URLs públicas de Storage como `text[]`. En bases existentes donde esta columna aún sea `json`, debe convertirse antes de desplegar esta funcionalidad; conserva arreglos JSON de cadenas y aborta ante valores que no sean arreglos:
+
+```sql
+CREATE FUNCTION public._json_images_to_text_array(value json)
+RETURNS text[]
+LANGUAGE sql
+IMMUTABLE
+AS $$
+  SELECT CASE
+    WHEN value IS NULL THEN NULL
+    ELSE COALESCE(array_agg(image), ARRAY[]::text[])
+  END
+  FROM json_array_elements_text(value) AS elements(image)
+$$;
+
+ALTER TABLE public.products
+  ALTER COLUMN images TYPE text[]
+  USING public._json_images_to_text_array(images);
+
+DROP FUNCTION public._json_images_to_text_array(json);
+```
