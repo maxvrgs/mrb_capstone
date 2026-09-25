@@ -11,8 +11,6 @@ import {
   IconHeart,
   IconPlus,
   IconSearch,
-  IconShieldCheck,
-  IconTruck,
   IconUser,
 } from "@/components/icons";
 
@@ -200,7 +198,7 @@ export default function Navbar() {
                 <span className="count-badge">2</span>
               </button>
 
-              <Link href="/" className="btn btn-primary hidden h-10 px-4 sm:inline-flex">
+              <Link href="/vender" className="btn btn-primary hidden h-10 px-4 sm:inline-flex">
                 <IconPlus className="h-4 w-4" />
                 Vender
               </Link>

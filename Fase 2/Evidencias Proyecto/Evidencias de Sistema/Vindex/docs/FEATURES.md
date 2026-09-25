@@ -17,7 +17,7 @@ Status: 🟡 En desarrollo
 
 Status: 🟡 En desarrollo
 
-- [] Crear producto
+- [x] Crear producto
 - [] Editar producto
 - [] Eliminar producto
 - [] Listar productos

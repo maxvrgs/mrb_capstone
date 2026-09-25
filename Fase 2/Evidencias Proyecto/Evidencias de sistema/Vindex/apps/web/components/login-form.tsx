@@ -46,7 +46,12 @@ export function LoginForm({
       return
     }
 
-    router.push("/profile")
+    const nextPath = new URLSearchParams(window.location.search).get("next")
+    const redirectTo = nextPath?.startsWith("/") && !nextPath.startsWith("//")
+      ? nextPath
+      : "/profile"
+
+    router.push(redirectTo)
     router.refresh()
   }
 
