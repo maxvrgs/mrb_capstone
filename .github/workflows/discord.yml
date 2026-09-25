@@ -1,0 +1,19 @@
+name: Notify Discord
+on:
+  push:
+    branches: [ main, develop ]
+
+jobs:
+  notify:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Post to Discord
+        uses: Ilshidur/action-discord@0.4.0
+        env:
+          DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        with:
+          args: |
+            **${{ github.actor }}** hizo commit a **${{ github.repository }}**
+            Branch: `${{ github.ref_name }}`
+            Commit: `\${{ github.event.head_commit.message }}`
+            Compare: ${{ github.event.compare }}
