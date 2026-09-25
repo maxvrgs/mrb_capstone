@@ -13,6 +13,7 @@ jobs:
           DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK_URL }}
         with:
           args: |
-            **${{ github.actor }}** pushed to **${{ github.repository }}**
+            **${{ github.actor }}** hizo commit a **${{ github.repository }}**
             Branch: `${{ github.ref_name }}`
+            Commit: `\${{ github.event.head_commit.message }}`
             Compare: ${{ github.event.compare }}
