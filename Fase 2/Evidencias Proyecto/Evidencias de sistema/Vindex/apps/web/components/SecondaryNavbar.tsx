@@ -6,7 +6,7 @@ import { IconBolt } from "@/components/icons";
 // 1. Definimos la estructura de los enlaces en un arreglo limpio
 const NAV_LINKS = [
   { href: "/", label: "Inicio", className: "my-1.5 rounded-full text-brand-700" },
-  { href: "/shop", label: "Tienda", className: "my-1.5 rounded-full text-brand-700" },
+  { href: "/tienda", label: "Tienda", className: "my-1.5 rounded-full text-brand-700" },
   { href: "/subastas", label: "Subastas", className: "my-1.5 rounded-full text-brand-700" },
   { href: "/categorias", label: "Categorías", className: "my-1.5 rounded-full text-brand-700" },
   { 

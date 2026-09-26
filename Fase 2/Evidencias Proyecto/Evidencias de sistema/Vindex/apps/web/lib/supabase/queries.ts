@@ -1,5 +1,6 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
+export { formatProductPrice } from "../formatters";
 
 export type ProductListing = {
 	id: number;
@@ -133,12 +134,21 @@ export async function getProductById(productId: number): Promise<ProductListing 
 	return data as ProductListing | null;
 }
 
-export const formatProductPrice = (price: number | null) =>
-	new Intl.NumberFormat("es-CL", {
-		style: "currency",
-		currency: "CLP",
-		maximumFractionDigits: 0,
-	}).format(price ?? 0);
+export async function getProductBySlug(slug: string): Promise<ProductListing | null> {
+	const supabase = await createSupabaseServerClient();
+	const { data, error } = await supabase
+		.from("products")
+		.select("*")
+		.eq("slug", slug)
+		.single();
+
+	if (error) {
+		logQueryError("el producto", error.message);
+		return null;
+	}
+
+	return data as ProductListing | null;
+}
 
 export const getActiveDiscountPrice = (product: ProductListing) =>
 	product.discount_price !== null &&

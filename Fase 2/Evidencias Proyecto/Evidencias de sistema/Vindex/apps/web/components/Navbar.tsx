@@ -123,7 +123,7 @@ export default function Navbar() {
             {/* Logo */}
             <Link href="/" className="flex shrink-0 items-center gap-2.5" aria-label="Vindex, ir al inicio">
               <img 
-                src="logo.png" 
+                src="/logo.png" 
                 alt="Logo de Vindex" 
                 className="mx-auto h-20 w-auto object-contain" 
              />
