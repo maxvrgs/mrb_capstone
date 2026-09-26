@@ -4,11 +4,16 @@ import { cookies } from "next/headers";
 export type ProductListing = {
 	id: number;
 	name: string | null;
+	slug: string | null;
+	description: string | null;
 	price: number | null;
 	discount_price: number | null;
 	stock: number | null;
 	images: string[] | null;
 	seller_id: string;
+	condition: string | null;
+	status: boolean | null;
+	shipping_available: boolean | null;
 	is_featured: boolean | null;
 	featured_until: string | null;
 	offer_ends_at: string | null;
@@ -110,6 +115,22 @@ export async function getAllPublishedProducts(): Promise<ProductListing[]> {
 	}
 
 	return (data ?? []) as ProductListing[];
+}
+
+export async function getProductById(productId: number): Promise<ProductListing | null> {
+	const supabase = await createSupabaseServerClient();
+	const { data, error } = await supabase
+		.from("products")
+		.select("*")
+		.eq("id", productId)
+		.single();
+
+	if (error) {
+		logQueryError("el producto", error.message);
+		return null;
+	}
+
+	return data as ProductListing | null;
 }
 
 export const formatProductPrice = (price: number | null) =>

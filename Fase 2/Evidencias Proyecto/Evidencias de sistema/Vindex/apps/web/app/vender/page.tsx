@@ -45,11 +45,52 @@ const SelectedImageList = memo(function SelectedImageList({
 });
 
 const ProductImagePreview = memo(function ProductImagePreview({ images }: { images: SelectedImage[] }) {
+	const [selectedIndex, setSelectedIndex] = useState(0);
+
+	useEffect(() => {
+		setSelectedIndex(0);
+	}, [images.length]);
+
+	const safeImages = images.length > 0 ? images : [];
+	const currentImage = safeImages[selectedIndex] ?? null;
+
+	const goToPrevious = () => {
+		if (safeImages.length === 0) return;
+		setSelectedIndex((current) => (current === 0 ? safeImages.length - 1 : current - 1));
+	};
+
+	const goToNext = () => {
+		if (safeImages.length === 0) return;
+		setSelectedIndex((current) => (current === safeImages.length - 1 ? 0 : current + 1));
+	};
+
 	return (
 		<>
-			<div className="aspect-4/3 overflow-hidden rounded-lg bg-muted">
-				{images[0] ? (
-					<img src={images[0].previewUrl} alt={images[0].file.name} decoding="async" className="h-full w-full object-cover" />
+			<div className="relative aspect-4/3 overflow-hidden rounded-lg bg-muted">
+				{currentImage ? (
+					<>
+						<img src={currentImage.previewUrl} alt={currentImage.file.name} decoding="async" className="h-full w-full object-cover" />
+						{safeImages.length > 1 && (
+							<>
+								<button
+									type="button"
+									aria-label="Ver imagen anterior"
+									onClick={goToPrevious}
+									className="absolute left-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface/85 text-foreground shadow-sm backdrop-blur"
+								>
+									<span aria-hidden="true">←</span>
+								</button>
+								<button
+									type="button"
+									aria-label="Ver imagen siguiente"
+									onClick={goToNext}
+									className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-full border border-border bg-surface/85 text-foreground shadow-sm backdrop-blur"
+								>
+									<span aria-hidden="true">→</span>
+								</button>
+							</>
+						)}
+					</>
 				) : (
 					<div className="flex h-full flex-col items-center justify-center gap-2 text-muted-foreground">
 						<ImagePlus className="h-8 w-8" aria-hidden="true" />
@@ -57,10 +98,20 @@ const ProductImagePreview = memo(function ProductImagePreview({ images }: { imag
 					</div>
 				)}
 			</div>
-			{images.length > 1 && (
+			{safeImages.length > 1 && (
 				<div className="mt-2 grid grid-cols-4 gap-2">
-					{images.slice(1).map((image) => (
-						<img key={image.previewUrl} src={image.previewUrl} alt={image.file.name} decoding="async" className="aspect-square w-full rounded-md object-cover" />
+					{safeImages.map((image, index) => (
+						<button
+							key={image.previewUrl}
+							type="button"
+							aria-label={`Seleccionar imagen ${index + 1}`}
+							onClick={() => setSelectedIndex(index)}
+							className={`aspect-square overflow-hidden rounded-md border ${
+								selectedIndex === index ? "border-brand-500 ring-2 ring-brand-200" : "border-border"
+							}`}
+						>
+							<img src={image.previewUrl} alt={image.file.name} decoding="async" className="h-full w-full object-cover" />
+						</button>
 					))}
 				</div>
 			)}

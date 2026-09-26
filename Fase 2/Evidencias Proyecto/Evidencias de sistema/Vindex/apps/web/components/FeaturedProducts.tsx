@@ -34,6 +34,7 @@ export default async function FeaturedProducts() {
           {products.map((product) => (
             <ProductCard
               key={product.id}
+              id={product.id}
               name={product.name ?? "Producto sin nombre"}
               price={formatProductPrice(getActiveDiscountPrice(product) ?? product.price)}
               image={getProductImage(product)}

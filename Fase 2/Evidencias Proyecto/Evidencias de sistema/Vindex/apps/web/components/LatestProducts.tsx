@@ -25,11 +25,12 @@ export default async function LatestProducts() {
         {products.map((product) => (
           <ProductCard
             key={product.id}
-              name={product.name ?? "Producto sin nombre"}
-              price={formatProductPrice(getActiveDiscountPrice(product) ?? product.price)}
-              image={getProductImage(product)}
-              previousPrice={getActiveDiscountPrice(product) !== null ? formatProductPrice(product.price) : undefined}
-              discount={getDiscountLabel(product)}
+            id={product.id}
+            name={product.name ?? "Producto sin nombre"}
+            price={formatProductPrice(getActiveDiscountPrice(product) ?? product.price)}
+            image={getProductImage(product)}
+            previousPrice={getActiveDiscountPrice(product) !== null ? formatProductPrice(product.price) : undefined}
+            discount={getDiscountLabel(product)}
           />
         ))}
       </div>
