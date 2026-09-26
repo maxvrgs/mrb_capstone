@@ -10,14 +10,22 @@ create table public.products (
   stock numeric null,
   condition text null,
   status boolean null,
+  is_featured boolean not null default false,
+  featured_until timestamp with time zone null,
+  discount_price numeric null,
+  offer_ends_at timestamp with time zone null,
   created_at timestamp with time zone not null default now(),
   updated_at timestamp with time zone null default now(),
   images text[] null,
   sale_type text null,
   is_auction boolean null,
   shipping_available boolean null,
+  constraint products_discount_price_lt_price_check
+    check (discount_price is null or (price is not null and discount_price < price)),
   constraint products_pkey primary key (id)
 ) TABLESPACE pg_default;
+
+En este esquema, `status = true` representa una publicación activa; las consultas de la portada usan ese valor booleano. Los campos promocionales permiten fechas de expiración nulas cuando la promoción correspondiente está desactivada.
 
 BUCKET NAME:
 

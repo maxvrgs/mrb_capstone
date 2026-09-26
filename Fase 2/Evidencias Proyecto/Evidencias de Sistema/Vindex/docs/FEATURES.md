@@ -18,9 +18,10 @@ Status: 🟡 En desarrollo
 Status: 🟡 En desarrollo
 
 - [x] Crear producto
-- [] Editar producto
-- [] Eliminar producto
-- [] Listar productos
+- [x] Editar publicaciones propias desde el perfil de vendedor
+- [x] Crear y renovar ofertas con vencimiento
+- [x] Listar publicaciones activas ordenadas por fecha en la portada
+- [ ] Eliminar producto
 - [ ] Carrito
 - [ ] Checkout
 

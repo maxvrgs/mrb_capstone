@@ -3,7 +3,7 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, UploadCloud, X } from "lucide-react";
+import { ImagePlus, Sparkles, UploadCloud, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -15,6 +15,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { createClient } from "@/lib/supabase/client";
 
 type SelectedImage = {
@@ -143,6 +144,10 @@ export default function SellProductPage() {
 	const [slugSuffix, setSlugSuffix] = useState("");
 	const [description, setDescription] = useState("");
 	const [price, setPrice] = useState("");
+	const [discountPrice, setDiscountPrice] = useState("");
+	const [offerDurationHours, setOfferDurationHours] = useState("24");
+	const [isFeatured, setIsFeatured] = useState(false);
+	const [featuredDurationDays, setFeaturedDurationDays] = useState("7");
 	const [stock, setStock] = useState("1");
 	const [condition, setCondition] = useState("Nuevo");
 	const [categoryId, setCategoryId] = useState("");
@@ -161,6 +166,9 @@ export default function SellProductPage() {
 	const formattedPrice = price
 		? new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(price))
 		: "Precio por definir";
+	const invalidDiscountPrice = discountPrice.trim() !== "" && (
+		!Number.isFinite(Number(discountPrice)) || Number(discountPrice) >= Number(price)
+	);
 
 	useEffect(() => {
 		let isCurrent = true;
@@ -211,9 +219,15 @@ export default function SellProductPage() {
 
 	const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
 		event.preventDefault();
-		setSaving(true);
 		setErrorMessage(null);
 		setSuccessMessage(null);
+
+		if (invalidDiscountPrice) {
+			setErrorMessage("El precio de oferta debe ser estrictamente menor que el precio normal.");
+			return;
+		}
+
+		setSaving(true);
 
 		try {
 			const { data: { user }, error: authError } = await supabase.auth.getUser();
@@ -223,6 +237,8 @@ export default function SellProductPage() {
 			}
 
 			const productSlug = slug || `${toSlug(name)}-${createSlugSuffix()}`;
+			const now = new Date();
+			const parsedDiscountPrice = discountPrice.trim() ? Number(discountPrice) : null;
 			const { data: product, error: productError } = await supabase.from("products").insert({
 				seller_id: user.id,
 				store_id: storeId ? Number(storeId) : null,
@@ -231,6 +247,14 @@ export default function SellProductPage() {
 				slug: productSlug,
 				description: description.trim() || null,
 				price: Number(price),
+				discount_price: parsedDiscountPrice,
+				offer_ends_at: parsedDiscountPrice !== null
+					? new Date(now.getTime() + Number(offerDurationHours) * 60 * 60 * 1000).toISOString()
+					: null,
+				is_featured: isFeatured,
+				featured_until: isFeatured
+					? new Date(now.getTime() + Number(featuredDurationDays) * 24 * 60 * 60 * 1000).toISOString()
+					: null,
 				stock: Number(stock),
 				condition,
 				status: isPublished,
@@ -267,6 +291,10 @@ export default function SellProductPage() {
 			setSlugSuffix(createSlugSuffix());
 			setDescription("");
 			setPrice("");
+			setDiscountPrice("");
+			setOfferDurationHours("24");
+			setIsFeatured(false);
+			setFeaturedDurationDays("7");
 			setStock("1");
 			setCondition("Nuevo");
 			setCategoryId("");
@@ -348,6 +376,55 @@ export default function SellProductPage() {
 										<Input id="stock" type="number" min="0" step="any" value={stock} onChange={(event) => setStock(event.target.value)} required />
 									</div>
 								</div>
+
+								<Tabs defaultValue="offer" className="w-full rounded-md border border-border p-4">
+									<TabsList className="grid w-full grid-cols-2">
+										<TabsTrigger value="offer">Ofertas</TabsTrigger>
+										<TabsTrigger value="featured">Destacados</TabsTrigger>
+									</TabsList>
+									<TabsContent value="offer" className="space-y-4 pt-4">
+										<div className="space-y-2">
+											<Label htmlFor="discountPrice">Precio de oferta (opcional)</Label>
+											<Input
+												id="discountPrice"
+												type="number"
+												min="0"
+												step="any"
+												value={discountPrice}
+												aria-invalid={invalidDiscountPrice}
+												onChange={(event) => setDiscountPrice(event.target.value)}
+											/>
+											{invalidDiscountPrice ? (
+												<p role="alert" className="text-sm text-red-700">Debe ser menor que {formattedPrice}.</p>
+											) : (
+												<p className="text-xs text-muted-foreground">El precio normal se mostrará tachado durante la oferta.</p>
+											)}
+										</div>
+										<div className="space-y-2">
+											<Label htmlFor="offerDuration">Duración de la oferta</Label>
+											<select id="offerDuration" value={offerDurationHours} onChange={(event) => setOfferDurationHours(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm">
+												<option value="24">24 horas</option>
+												<option value="48">48 horas</option>
+												<option value="168">7 días</option>
+											</select>
+										</div>
+									</TabsContent>
+									<TabsContent value="featured" className="space-y-4 pt-4">
+										<Button type="button" variant={isFeatured ? "default" : "outline"} aria-pressed={isFeatured} onClick={() => setIsFeatured((current) => !current)} className="w-full justify-start">
+											<Sparkles className="h-4 w-4" aria-hidden="true" />
+											{isFeatured ? "Producto destacado" : "Destacar producto (Promoción)"}
+										</Button>
+										<div className="space-y-2">
+											<Label htmlFor="featuredDuration">Duración del destacado</Label>
+											<select id="featuredDuration" value={featuredDurationDays} onChange={(event) => setFeaturedDurationDays(event.target.value)} disabled={!isFeatured} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-50">
+												<option value="1">1 día</option>
+												<option value="3">3 días</option>
+												<option value="7">7 días</option>
+												<option value="14">14 días</option>
+											</select>
+										</div>
+									</TabsContent>
+								</Tabs>
 
 								<div className="space-y-2">
 									<Label htmlFor="condition">Estado del producto</Label>
@@ -457,7 +534,18 @@ export default function SellProductPage() {
 								</div>
 								<h2 className="wrap-break-word text-xl font-bold text-foreground">{name.trim() || "Nombre del producto"}</h2>
 								<p className="whitespace-pre-wrap wrap-break-word text-sm text-muted-foreground">{description.trim() || "La descripción del producto aparecerá aquí."}</p>
-								<p className="text-2xl font-extrabold text-foreground">{formattedPrice}</p>
+								<div className="flex flex-wrap items-baseline gap-2">
+									{discountPrice && !invalidDiscountPrice ? (
+										<>
+											<p className="text-2xl font-extrabold text-foreground">
+												{new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(discountPrice))}
+											</p>
+											<p className="text-sm text-muted-foreground line-through">{formattedPrice}</p>
+										</>
+									) : (
+										<p className="text-2xl font-extrabold text-foreground">{formattedPrice}</p>
+									)}
+								</div>
 								<div className="flex flex-wrap justify-between gap-2 border-t border-border pt-3 text-sm text-muted-foreground">
 									<span>Stock: {stock || "0"}</span>
 									<span>{shippingAvailable ? "Envío disponible" : "Sin envío"}</span>

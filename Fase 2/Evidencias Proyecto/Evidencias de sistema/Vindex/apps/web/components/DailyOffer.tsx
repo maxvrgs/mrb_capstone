@@ -1,6 +1,19 @@
 import { IconArrowRight, IconBolt, IconTag } from "@/components/icons";
+import { formatProductPrice, getDailyDeals, getDiscountLabel, getProductImage } from "@/lib/supabase/queries";
+import OfferCountdown from "@/components/OfferCountdown";
 
-export default function DailyOffer() {
+export default async function DailyOffer() {
+  const [product] = await getDailyDeals();
+  if (!product) {
+    return (
+      <section className="flex h-full flex-col rounded-lg border border-border bg-surface p-5">
+        <p className="eyebrow text-accent-600">Oferta especial</p>
+        <h2 className="mt-1 text-xl font-extrabold text-foreground">Oferta del día</h2>
+        <p className="mt-3 text-sm text-muted-foreground">No hay ofertas disponibles en este momento.</p>
+      </section>
+    );
+  }
+
   return (
     <section className="flex h-full flex-col overflow-hidden rounded-2xl border border-border bg-surface shadow-card">
       {/* Cabecera */}
@@ -13,15 +26,15 @@ export default function DailyOffer() {
         </div>
         <span className="badge badge-accent shrink-0">
           <IconTag className="h-3 w-3" />
-          -33%
+          {getDiscountLabel(product)}
         </span>
       </div>
 
       {/* Imagen con cuenta regresiva */}
       <div className="relative mx-5 overflow-hidden rounded-xl bg-muted">
         <img
-          src="https://picsum.photos/seed/vx-oferta/700/700"
-          alt="Cafetera italiana en oferta"
+          src={product.images?.[0] ?? getProductImage(product)}
+          alt={product.name ?? "Producto en oferta"}
           loading="lazy"
           className="aspect-4/3 w-full object-cover sm:aspect-square"
         />
@@ -32,7 +45,7 @@ export default function DailyOffer() {
               Termina en
             </p>
             <p className="font-mono text-base font-bold tracking-wider">
-              03 : 21 : 44
+              <OfferCountdown endsAt={product.offer_ends_at!} />
             </p>
           </div>
           <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-accent-600">
@@ -44,20 +57,20 @@ export default function DailyOffer() {
       {/* Detalle */}
       <div className="flex flex-1 flex-col p-5">
         <h3 className="text-lg font-bold text-foreground">
-          Cafetera italiana 6 tazas
+          {product.name ?? "Producto en oferta"}
         </h3>
-        <p className="mt-1 text-sm text-muted-foreground">por Vintage Chile</p>
+        <p className="mt-1 text-sm text-muted-foreground">Oferta por tiempo limitado</p>
 
         <div className="mt-3 flex items-baseline gap-2.5">
           <span className="text-3xl font-extrabold tracking-tight text-foreground">
-            $39.990
+            {formatProductPrice(product.discount_price)}
           </span>
           <span className="text-sm font-medium text-muted-foreground line-through">
-            $59.990
+            {formatProductPrice(product.price)}
           </span>
         </div>
 
-        <a href="#" className="btn btn-primary mt-4 w-full py-3">
+        <a href="/shop" className="btn btn-primary mt-4 w-full py-3">
           Ver oferta
           <IconArrowRight className="h-4 w-4" />
         </a>
