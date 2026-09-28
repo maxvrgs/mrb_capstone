@@ -34,7 +34,7 @@ export default function ProductGallery({ images, alt }: ProductGalleryProps) {
         <img
           src={safeImages[selectedIndex]}
           alt={alt}
-          className="h-full w-full object-cover"
+          className="h-full w-full object-contain"
         />
 
         {safeImages.length > 1 && (

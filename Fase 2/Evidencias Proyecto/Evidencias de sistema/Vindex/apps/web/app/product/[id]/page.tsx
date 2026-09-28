@@ -70,6 +70,13 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 </button>
               </div>
 
+              <div className="rounded-2xl border border-border bg-card p-5">
+                <h2 className="text-lg font-semibold text-foreground">Descripción</h2>
+                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground">
+                  {product.description ?? "Este producto aún no tiene descripción disponible."}
+                </p>
+              </div>
+              
               <div className="space-y-3 rounded-2xl border border-border bg-card p-4">
                 <div className="flex items-center gap-3 text-sm text-muted-foreground">
                   <IconShieldCheck className="h-5 w-5 text-brand-700" />
@@ -83,13 +90,6 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   <IconStar className="h-5 w-5 text-brand-700" />
                   <span>{product.condition ?? "Condición no especificada"}</span>
                 </div>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-card p-5">
-                <h2 className="text-lg font-semibold text-foreground">Descripción</h2>
-                <p className="mt-3 whitespace-pre-line text-sm leading-7 text-muted-foreground">
-                  {product.description ?? "Este producto aún no tiene descripción disponible."}
-                </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-3">
