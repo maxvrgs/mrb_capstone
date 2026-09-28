@@ -8,8 +8,10 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
+import { ShoppingCart } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { formatProductPrice } from "@/lib/formatters";
+import { useCartStore } from "@/lib/store/useCartStore";
 
 type CatalogProduct = {
     id: number;
@@ -17,7 +19,10 @@ type CatalogProduct = {
     slug: string | null;
     price: number | null;
     discount_price: number | null;
+    offer_ends_at: string | null;
     images: string[] | null;
+    stock: number | null;
+    seller_id: string;
     condition: string | null;
     category_id: number | null;
     created_at: string;
@@ -27,6 +32,12 @@ type ProductCategory = { id: number; name: string };
 
 const conditions = ["Nuevo", "Usado", "Reacondicionado"];
 const fallbackImage = "https://picsum.photos/seed/vindex-catalog/640/640";
+const getCurrentPrice = (product: CatalogProduct) =>
+    product.discount_price !== null &&
+    product.offer_ends_at !== null &&
+    new Date(product.offer_ends_at).getTime() > Date.now()
+        ? product.discount_price
+        : product.price;
 
 export default function Shop() {
     const supabase = createClient();
@@ -40,6 +51,8 @@ export default function Shop() {
     const [sort, setSort] = useState("recent");
     const [loading, setLoading] = useState(true);
     const [errorMessage, setErrorMessage] = useState("");
+    const addItem = useCartStore((state) => state.addItem);
+    const hasCartHydrated = useCartStore((state) => state.hasHydrated);
 
     useEffect(() => {
         let isCurrent = true;
@@ -48,9 +61,9 @@ export default function Shop() {
             const [productResult, categoryResult] = await Promise.all([
                 supabase
                     .from("products")
-                    .select("id, name, slug, price, discount_price, images, condition, category_id, created_at")
+                    .select("id, name, slug, price, discount_price, offer_ends_at, images, stock, seller_id, condition, category_id, created_at")
                     .eq("status", true)
-                    .eq("sale_type", "direct")
+                    .in("sale_type", ["direct", "fixed_price"])
                     .gt("stock", 0)
                     .order("created_at", { ascending: false }),
                 supabase.from("categories").select("id, name").order("name"),
@@ -78,7 +91,7 @@ export default function Shop() {
         const normalizedSearch = search.trim().toLocaleLowerCase("es-CL");
         return products
             .filter((product) => {
-                const price = product.discount_price ?? product.price ?? 0;
+                const price = getCurrentPrice(product) ?? 0;
                 return (
                     (!normalizedSearch || (product.name ?? "").toLocaleLowerCase("es-CL").includes(normalizedSearch)) &&
                     (!minimumPrice || price >= Number(minimumPrice)) &&
@@ -88,8 +101,8 @@ export default function Shop() {
                 );
             })
             .sort((first, second) => {
-                if (sort === "price-asc") return (first.discount_price ?? first.price ?? 0) - (second.discount_price ?? second.price ?? 0);
-                if (sort === "price-desc") return (second.discount_price ?? second.price ?? 0) - (first.discount_price ?? first.price ?? 0);
+                if (sort === "price-asc") return (getCurrentPrice(first) ?? 0) - (getCurrentPrice(second) ?? 0);
+                if (sort === "price-desc") return (getCurrentPrice(second) ?? 0) - (getCurrentPrice(first) ?? 0);
                 return new Date(second.created_at).getTime() - new Date(first.created_at).getTime();
             });
     }, [products, search, minimumPrice, maximumPrice, condition, categoryId, sort]);
@@ -169,17 +182,37 @@ export default function Shop() {
                                     const destination = `/producto/${encodeURIComponent(product.slug || String(product.id))}`;
                                     return (
                                         <Card key={product.id} className="group overflow-hidden rounded-xl border-border bg-surface py-0 shadow-sm transition hover:-translate-y-0.5 hover:shadow-md">
-                                            <Link href={destination} className="flex h-full flex-col" aria-label={`Ver producto ${product.name ?? "sin nombre"}`}>
+                                            <div className="flex h-full flex-col">
+                                            <Link href={destination} className="flex flex-1 flex-col" aria-label={`Ver producto ${product.name ?? "sin nombre"}`}>
                                                 <div className="relative aspect-square overflow-hidden bg-muted">
                                                     <img src={product.images?.[0] || fallbackImage} alt={product.name ?? "Producto"} loading="lazy" className="h-full w-full object-cover transition duration-300 group-hover:scale-105" />
                                                     {product.condition && <Badge variant="secondary" className="absolute left-3 top-3">{product.condition}</Badge>}
                                                 </div>
                                                 <CardContent className="flex flex-1 flex-col gap-3 p-3 sm:p-4">
                                                     <h2 className="line-clamp-2 min-h-10 text-sm font-semibold text-foreground">{product.name ?? "Producto sin nombre"}</h2>
-                                                    <p className="mt-auto text-base font-extrabold text-foreground">{formatProductPrice(product.discount_price ?? product.price)}</p>
+                                                    <p className="mt-auto text-base font-extrabold text-foreground">{formatProductPrice(getCurrentPrice(product))}</p>
                                                     <span className="btn btn-primary min-h-9 w-full rounded-lg">Ver Producto</span>
                                                 </CardContent>
                                             </Link>
+                                            <Button
+                                                type="button"
+                                                variant="outline"
+                                                disabled={!hasCartHydrated || !product.stock || product.stock < 1}
+                                                onClick={() => addItem({
+                                                    id: product.id,
+                                                    name: product.name ?? "Producto sin nombre",
+                                                    price: getCurrentPrice(product) ?? 0,
+                                                    image: product.images?.[0] || fallbackImage,
+                                                    quantity: 1,
+                                                    stock: Math.floor(product.stock ?? 0),
+                                                    seller_id: product.seller_id,
+                                                })}
+                                                className="mx-3 mb-3 h-9 rounded-lg sm:mx-4 sm:mb-4"
+                                            >
+                                                <ShoppingCart aria-hidden="true" />
+                                                {hasCartHydrated ? "Agregar al carrito" : "Preparando carrito..."}
+                                            </Button>
+                                            </div>
                                         </Card>
                                     );
                                 })}

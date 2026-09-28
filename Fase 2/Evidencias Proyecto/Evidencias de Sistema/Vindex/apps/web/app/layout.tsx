@@ -6,6 +6,7 @@ import { cn } from "@/lib/utils";
 import Navbar from "@/components/Navbar";
 import SecondaryNavbar from "@/components/SecondaryNavbar";
 import Footer from "@/components/Footer";
+import CartIntegration from "@/components/cart/CartIntegration";
 
 const outfitHeading = Outfit({subsets:['latin'],variable:'--font-heading'});
 
@@ -38,6 +39,7 @@ export default function RootLayout({
       >
         <Navbar />
         <SecondaryNavbar />
+        <CartIntegration />
         {children}
         <Footer />
       </body>

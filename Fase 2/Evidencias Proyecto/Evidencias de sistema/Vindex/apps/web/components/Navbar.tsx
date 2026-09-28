@@ -6,8 +6,8 @@ import { useRouter } from "next/navigation";
 import type { User } from "@supabase/supabase-js";
 import { ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import CartNavButton from "@/components/cart/CartNavButton";
 import {
-  IconCart,
   IconHeart,
   IconPlus,
   IconSearch,
@@ -193,10 +193,7 @@ export default function Navbar() {
                 <span className="count-badge">3</span>
               </button>
 
-              <button type="button" className="icon-btn h-10 w-10" aria-label="Mi carrito">
-                <IconCart className="h-5 w-5" />
-                <span className="count-badge">2</span>
-              </button>
+              <CartNavButton />
 
               <Link href="/vender" className="btn btn-primary hidden h-10 px-4 sm:inline-flex">
                 <IconPlus className="h-4 w-4" />

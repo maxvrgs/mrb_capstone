@@ -4,6 +4,7 @@ export type ProductListing = {
 	slug: string | null;
 	description: string | null;
 	price: number | null;
+	sale_type: string | null;
 	discount_price: number | null;
 	stock: number | null;
 	images: string[] | null;
@@ -33,5 +34,5 @@ export const getDiscountLabel = (product: ProductListing) => {
 	return `-${percentage}%`;
 };
 
-export const getProductImage = (product: ProductListing) =>
+export const getProductImage = (product: Pick<ProductListing, "images">) =>
 	product.images?.[0] ?? "https://picsum.photos/seed/vindex-product/600/600";

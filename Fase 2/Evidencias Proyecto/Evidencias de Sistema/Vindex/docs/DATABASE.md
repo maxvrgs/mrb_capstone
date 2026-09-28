@@ -56,3 +56,7 @@ DROP FUNCTION public._json_images_to_text_array(json);
 ```
 
 La relación `products.seller_id` referencia `profiles.id` mediante la restricción `fk_products_profiles`. Las consultas de detalle cargan el nombre del vendedor con `seller:profiles!fk_products_profiles (id, full_name)`. Los productos muestran una tienda asociada cuando `store_id` apunta a una fila de `public.stores` con columna `name`.
+
+## Carrito de compras
+
+La migración `20260928000000_shopping_cart.sql` crea `public.carts` y `public.cart_items`. Cada carrito pertenece a un usuario autenticado; `cart_items.cart_id` es UUID y `cart_items.product_id` es BIGINT, con una fila única por producto y carrito. Las políticas RLS limitan lectura y mutaciones al propietario. La aplicación considera compra directa los valores existentes `sale_type = 'direct'` y `sale_type = 'fixed_price'`; excluye `auction` y valida el precio promocional y stock actuales antes de fusionar el carrito local.
