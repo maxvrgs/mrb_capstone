@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ProductGallery from "@/components/ProductGallery";
 import { IconArrowRight, IconShieldCheck, IconStar, IconTruck } from "@/components/icons";
-import { formatProductPrice, getActiveDiscountPrice, getProductById, getProductImage } from "@/lib/supabase/queries";
+import { formatProductPrice, getActiveDiscountPrice, getProductById, getProductImage, getProductStoreName } from "@/lib/supabase/queries";
 
 export default async function ProductDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -18,6 +18,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
     notFound();
   }
 
+  const storeName = await getProductStoreName(product);
   const activePrice = getActiveDiscountPrice(product) ?? product.price;
   const originalPrice = product.price ?? activePrice;
   const galleryImages = product.images && product.images.length > 0 ? product.images : [getProductImage(product)];
@@ -108,6 +109,10 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                   </p>
                 </div>
               </div>
+              <p className="text-sm text-muted-foreground">
+                Vendedor: <span className="font-medium text-foreground">{product.seller?.full_name || "Vendedor Vindex"}</span>
+                {storeName && <> · Tienda: <span className="font-medium text-foreground">{storeName}</span></>}
+              </p>
             </div>
           </div>
         </div>

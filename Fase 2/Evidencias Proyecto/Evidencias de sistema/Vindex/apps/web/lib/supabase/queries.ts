@@ -12,6 +12,8 @@ export type ProductListing = {
 	stock: number | null;
 	images: string[] | null;
 	seller_id: string;
+	seller?: { id: string; full_name: string | null } | null;
+	store_id: number | null;
 	condition: string | null;
 	status: boolean | null;
 	shipping_available: boolean | null;
@@ -122,7 +124,13 @@ export async function getProductById(productId: number): Promise<ProductListing 
 	const supabase = await createSupabaseServerClient();
 	const { data, error } = await supabase
 		.from("products")
-		.select("*")
+		.select(`
+			*,
+			seller:profiles!fk_products_profiles (
+				id,
+				full_name
+			)
+		`)
 		.eq("id", productId)
 		.single();
 
@@ -134,11 +142,30 @@ export async function getProductById(productId: number): Promise<ProductListing 
 	return data as ProductListing | null;
 }
 
+export async function getProductStoreName(product: ProductListing): Promise<string | null> {
+	if (!product.store_id) return null;
+
+	const supabase = await createSupabaseServerClient();
+	const { data } = await supabase
+		.from("stores")
+		.select("name")
+		.eq("id", product.store_id)
+		.maybeSingle();
+
+	return typeof data?.name === "string" ? data.name : null;
+}
+
 export async function getProductBySlug(slug: string): Promise<ProductListing | null> {
 	const supabase = await createSupabaseServerClient();
 	const { data, error } = await supabase
 		.from("products")
-		.select("*")
+		.select(`
+			*,
+			seller:profiles!fk_products_profiles (
+				id,
+				full_name
+			)
+		`)
 		.eq("slug", slug)
 		.single();
 
