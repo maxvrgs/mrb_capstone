@@ -89,7 +89,7 @@ export default function Footer() {
                 {group.links.map((link) => (
                   <li key={link}>
                     <Link
-                      href="#"
+                      href={link === "Sobre nosotros" ? "/about" : "#"}
                       className="text-sm text-white/70 transition hover:text-brand-300"
                     >
                       {link}
