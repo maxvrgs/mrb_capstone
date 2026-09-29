@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
 import {
   Card,
@@ -24,6 +25,11 @@ type SellerProduct = {
   images: string[] | null;
   discount_price: number | null;
   offer_ends_at: string | null;
+  sale_type: string | null;
+  starting_price: number | null;
+  current_bid: number | null;
+  bid_increment: number | null;
+  auction_ends_at: string | null;
   created_at: string;
 };
 
@@ -35,6 +41,19 @@ type ProductDraft = {
   discountPrice: string;
   offerDurationHours: string;
   renewOffer: boolean;
+};
+
+type SellerStore = {
+  id: string;
+  name: string;
+  image: string;
+  description: string;
+  stats: {
+    sales: number;
+    earnings: number;
+    inStock: number;
+    visits: number;
+  };
 };
 
 export default function ProfilePage() {
@@ -56,6 +75,7 @@ export default function ProfilePage() {
   const [editingProductId, setEditingProductId] = useState<number | null>(null);
   const [productDraft, setProductDraft] = useState<ProductDraft | null>(null);
   const [savingProductId, setSavingProductId] = useState<number | null>(null);
+  const [deletingProductId, setDeletingProductId] = useState<number | null>(null);
   const [productSaveMessage, setProductSaveMessage] = useState<string | null>(null);
   const [productSaveError, setProductSaveError] = useState<string | null>(null);
 
@@ -67,8 +87,7 @@ export default function ProfilePage() {
   const [observacion, setObservacion] = useState("");
 
   // Tiendas simuladas (Mock para desarrollo inicial)
-  const [stores, setStores] = useState([
-  ]);
+  const [stores, setStores] = useState<SellerStore[]>([]);
 
   // Formulario simple para crear tienda
   const [showCreateStore, setShowCreateStore] = useState(false);
@@ -103,7 +122,7 @@ export default function ProfilePage() {
 
       const { data: products, error: productsError } = await supabase
         .from("products")
-        .select("id, name, description, price, stock, images, discount_price, offer_ends_at, created_at")
+        .select("id, name, description, price, stock, images, discount_price, offer_ends_at, sale_type, starting_price, current_bid, bid_increment, auction_ends_at, created_at")
         .eq("seller_id", user.id)
         .eq("status", true)
         .order("created_at", { ascending: false });
@@ -159,7 +178,9 @@ export default function ProfilePage() {
     setProductDraft({
       name: product.name ?? "",
       description: product.description ?? "",
-      price: product.price === null ? "" : String(product.price),
+      price: (product.sale_type === "auction" ? product.starting_price : product.price) === null
+        ? ""
+        : String(product.sale_type === "auction" ? product.starting_price : product.price),
       stock: product.stock === null ? "0" : String(product.stock),
       discountPrice: product.discount_price === null ? "" : String(product.discount_price),
       offerDurationHours: "24",
@@ -175,7 +196,10 @@ export default function ProfilePage() {
     setProductSaveMessage(null);
     const parsedPrice = Number(productDraft.price);
     const parsedStock = Number(productDraft.stock);
-    const parsedDiscountPrice = productDraft.discountPrice.trim() ? Number(productDraft.discountPrice) : null;
+    const isAuction = product.sale_type === "auction";
+    const parsedDiscountPrice = !isAuction && productDraft.discountPrice.trim()
+      ? Number(productDraft.discountPrice)
+      : null;
 
     if (!Number.isFinite(parsedPrice) || parsedPrice < 0 || !Number.isFinite(parsedStock) || parsedStock < 0) {
       setProductSaveError("Ingresa un precio y un stock válidos.");
@@ -194,7 +218,7 @@ export default function ProfilePage() {
     }
 
     setSavingProductId(product.id);
-    const offerEndsAt = parsedDiscountPrice === null
+    const offerEndsAt = isAuction || parsedDiscountPrice === null
       ? null
       : productDraft.renewOffer || !product.offer_ends_at
         ? new Date(Date.now() + Number(productDraft.offerDurationHours) * 60 * 60 * 1000).toISOString()
@@ -205,10 +229,11 @@ export default function ProfilePage() {
       .update({
         name: productDraft.name.trim(),
         description: productDraft.description.trim() || null,
-        price: parsedPrice,
+        price: isAuction ? null : parsedPrice,
         stock: parsedStock,
         discount_price: parsedDiscountPrice,
         offer_ends_at: offerEndsAt,
+        ...(isAuction ? { starting_price: parsedPrice } : {}),
       })
       .eq("id", product.id)
       .eq("seller_id", user.id);
@@ -224,15 +249,61 @@ export default function ProfilePage() {
           ...currentProduct,
           name: productDraft.name.trim(),
           description: productDraft.description.trim() || null,
-          price: parsedPrice,
+            price: isAuction ? null : parsedPrice,
           stock: parsedStock,
           discount_price: parsedDiscountPrice,
           offer_ends_at: offerEndsAt,
+            ...(isAuction ? { starting_price: parsedPrice } : {}),
         }
       : currentProduct));
     setProductSaveMessage("Los cambios del producto se guardaron.");
     setEditingProductId(null);
     setProductDraft(null);
+  };
+
+  const handleDeleteProduct = async (product: SellerProduct) => {
+    if (!window.confirm(`¿Quieres retirar "${product.name ?? "este producto"}" de tus publicaciones activas?`)) {
+      return;
+    }
+
+    setProductSaveError(null);
+    setProductSaveMessage(null);
+    setDeletingProductId(product.id);
+
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        router.replace("/login");
+        return;
+      }
+
+      const { data, error } = await supabase
+        .from("products")
+        .update({ status: false })
+        .eq("id", product.id)
+        .eq("seller_id", user.id)
+        .eq("status", true)
+        .select("id")
+        .maybeSingle();
+
+      if (error) throw error;
+      if (!data) {
+        throw new Error("No se encontró una publicación activa que puedas retirar.");
+      }
+
+      setSellerProducts((currentProducts) => currentProducts.filter(({ id }) => id !== product.id));
+      if (editingProductId === product.id) {
+        setEditingProductId(null);
+        setProductDraft(null);
+      }
+      setProductSaveMessage("El producto se retiró de tus publicaciones activas.");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      console.error("No se pudo retirar el producto:", message);
+      setProductSaveError(`No se pudo retirar el producto: ${message}`);
+    } finally {
+      setDeletingProductId(null);
+    }
   };
 
   const handleCreateStore = (e: React.FormEvent) => {
@@ -431,8 +502,12 @@ export default function ProfilePage() {
                     </div>
                   ) : (
                     sellerProducts.map((product) => {
+                      const isAuction = product.sale_type === "auction";
+                      const displayedPrice = isAuction
+                        ? product.current_bid ?? product.starting_price
+                        : product.price;
                       const activeOffer = product.discount_price !== null && product.offer_ends_at !== null && new Date(product.offer_ends_at).getTime() > Date.now();
-                      const invalidDraftDiscount = productDraft?.discountPrice.trim() !== "" && productDraft !== null && (
+                      const invalidDraftDiscount = !isAuction && productDraft?.discountPrice.trim() !== "" && productDraft !== null && (
                         !Number.isFinite(Number(productDraft.discountPrice)) || Number(productDraft.discountPrice) >= Number(productDraft.price)
                       );
 
@@ -449,9 +524,17 @@ export default function ProfilePage() {
                                 <div>
                                   <h3 className="font-semibold text-foreground">{product.name ?? "Producto sin nombre"}</h3>
                                   <p className="mt-1 text-sm text-muted-foreground">
-                                    {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(product.price ?? 0)}
+                                    {isAuction ? "Puja actual / inicial: " : ""}
+                                    {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(displayedPrice ?? 0)}
                                     <span className="mx-2">·</span>Stock: {product.stock ?? 0}
                                   </p>
+                                  {isAuction && (
+                                    <p className="mt-1 text-xs text-muted-foreground">
+                                      <Badge variant="secondary">Subasta</Badge>
+                                      <span className="ml-2">Incremento: {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(product.bid_increment ?? 0)}</span>
+                                      {product.auction_ends_at && <span> · Cierra {new Date(product.auction_ends_at).toLocaleString("es-CL")}</span>}
+                                    </p>
+                                  )}
                                   {activeOffer && (
                                     <p className="mt-1 text-sm text-accent-600">
                                       Oferta {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(product.discount_price!)} hasta {new Date(product.offer_ends_at!).toLocaleString("es-CL")}
@@ -459,9 +542,19 @@ export default function ProfilePage() {
                                   )}
                                 </div>
                                 {editingProductId !== product.id && (
-                                  <Button type="button" variant="outline" onClick={() => startEditingProduct(product)}>
-                                    Editar producto
-                                  </Button>
+                                  <div className="flex flex-wrap gap-2">
+                                    <Button type="button" variant="outline" onClick={() => startEditingProduct(product)}>
+                                      Editar producto
+                                    </Button>
+                                    <Button
+                                      type="button"
+                                      variant="destructive"
+                                      onClick={() => void handleDeleteProduct(product)}
+                                      disabled={deletingProductId === product.id}
+                                    >
+                                      {deletingProductId === product.id ? "Retirando..." : "Eliminar"}
+                                    </Button>
+                                  </div>
                                 )}
                               </div>
                               {product.description && <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{product.description}</p>}
@@ -480,20 +573,21 @@ export default function ProfilePage() {
                                   <Textarea id={`product-description-${product.id}`} value={productDraft.description} onChange={(event) => setProductDraft({ ...productDraft, description: event.target.value })} rows={3} />
                                 </div>
                                 <div className="space-y-2">
-                                  <Label htmlFor={`product-price-${product.id}`}>Precio normal</Label>
+                                  <Label htmlFor={`product-price-${product.id}`}>{isAuction ? "Precio inicial de subasta" : "Precio normal"}</Label>
                                   <Input id={`product-price-${product.id}`} type="number" min="0" step="any" value={productDraft.price} onChange={(event) => setProductDraft({ ...productDraft, price: event.target.value })} required />
                                 </div>
                                 <div className="space-y-2">
                                   <Label htmlFor={`product-stock-${product.id}`}>Stock</Label>
                                   <Input id={`product-stock-${product.id}`} type="number" min="0" step="any" value={productDraft.stock} onChange={(event) => setProductDraft({ ...productDraft, stock: event.target.value })} required />
                                 </div>
-                                <div className="space-y-2 sm:col-span-2">
+                                {!isAuction && <div className="space-y-2 sm:col-span-2">
                                   <Label htmlFor={`product-discount-${product.id}`}>Precio de oferta (opcional)</Label>
                                   <Input id={`product-discount-${product.id}`} type="number" min="0" step="any" value={productDraft.discountPrice} aria-invalid={Boolean(invalidDraftDiscount)} onChange={(event) => setProductDraft({ ...productDraft, discountPrice: event.target.value })} />
                                   {invalidDraftDiscount && <p className="text-sm text-red-700">Debe ser estrictamente menor que el precio normal.</p>}
-                                </div>
+                                </div>}
                               </div>
 
+                              {!isAuction && (
                               <div className="space-y-3 rounded-md bg-muted/50 p-3">
                                 <label className="flex items-center gap-2 text-sm text-foreground">
                                   <input type="checkbox" checked={productDraft.renewOffer} onChange={(event) => setProductDraft({ ...productDraft, renewOffer: event.target.checked })} className="h-4 w-4 accent-brand-600" />
@@ -508,6 +602,7 @@ export default function ProfilePage() {
                                   </select>
                                 </div>
                               </div>
+                              )}
 
                               <div className="flex flex-wrap justify-end gap-2">
                                 <Button type="button" variant="outline" onClick={() => { setEditingProductId(null); setProductDraft(null); setProductSaveError(null); }}>

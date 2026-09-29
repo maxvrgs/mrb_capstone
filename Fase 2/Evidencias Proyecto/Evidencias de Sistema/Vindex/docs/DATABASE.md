@@ -20,6 +20,11 @@ create table public.products (
   sale_type text null,
   is_auction boolean null,
   shipping_available boolean null,
+  starting_price numeric null,
+  current_bid numeric null,
+  bid_increment numeric null,
+  auction_ends_at timestamp with time zone null,
+  winner_id uuid null,
   constraint products_discount_price_lt_price_check
     check (discount_price is null or (price is not null and discount_price < price)),
   constraint fk_products_profiles
@@ -57,6 +62,25 @@ DROP FUNCTION public._json_images_to_text_array(json);
 
 La relación `products.seller_id` referencia `profiles.id` mediante la restricción `fk_products_profiles`. Las consultas de detalle cargan el nombre del vendedor con `seller:profiles!fk_products_profiles (id, full_name)`. Los productos muestran una tienda asociada cuando `store_id` apunta a una fila de `public.stores` con columna `name`.
 
+## Subastas en vivo
+
+Las subastas se almacenan en `public.products`, con `sale_type = 'auction'` y los campos `starting_price`, `current_bid`, `bid_increment`, `auction_ends_at` (`timestamptz`) y `winner_id` (UUID del perfil ganador). El vendedor de una subasta se obtiene desde `public.profiles` por la relación existente `products.seller_id` → `profiles.id`.
+
+Las pujas se registran en `public.bids` con `id`, `product_id` (`BIGINT`), `bidder_id` (`UUID`), `amount` y `created_at`. La interfaz trata los IDs `BIGINT` como `number` de JavaScript. No debe insertar pujas directamente: el envío se realiza exclusivamente mediante la RPC transaccional existente:
+
+```ts
+supabase.rpc("place_bid", {
+  p_product_id: productId,
+  p_bid_amount: amount,
+});
+```
+
+Al publicar una subasta, `price`, `discount_price` y `offer_ends_at` quedan nulos; el formulario guarda el monto inicial en `starting_price`, deja `current_bid` y `winner_id` nulos, define un `bid_increment` positivo y calcula `auction_ends_at` a partir de la duración elegida. En una venta directa, los campos exclusivos de subasta quedan nulos. El perfil retira publicaciones mediante baja lógica (`status = false`) para conservar referencias e historial de pujas.
+
+`public.products` y `public.bids` deben estar incluidas en la publicación `supabase_realtime`. Solo la sala individual `/subastas/[id]` abre un canal, con eventos filtrados por el ID de su producto (`bids` INSERT por `product_id`, `products` UPDATE por `id`) y retira la suscripción al desmontarse. El catálogo `/subastas`, el Home y `/tienda` utilizan consultas estándar; no abren canales de Realtime.
+
 ## Carrito de compras
 
-La migración `20260928000000_shopping_cart.sql` crea `public.carts` y `public.cart_items`. Cada carrito pertenece a un usuario autenticado; `cart_items.cart_id` es UUID y `cart_items.product_id` es BIGINT, con una fila única por producto y carrito. Las políticas RLS limitan lectura y mutaciones al propietario. La aplicación considera compra directa los valores existentes `sale_type = 'direct'` y `sale_type = 'fixed_price'`; excluye `auction` y valida el precio promocional y stock actuales antes de fusionar el carrito local.
+El contrato requerido por la sincronización de la aplicación usa `public.carts` y `public.cart_items`. Cada carrito pertenece a un usuario autenticado; `cart_items.cart_id` es UUID y `cart_items.product_id` es BIGINT, con una fila única por producto y carrito. Las políticas RLS deben limitar lectura y mutaciones al propietario.
+
+En el checkout actual del repositorio no se encontró versionada la migración `20260928000000_shopping_cart.sql`; verificar que estas tablas, restricciones e índices estén creados en Supabase antes de depender de la sincronización entre dispositivos. La aplicación considera compra directa los valores existentes `sale_type = 'direct'` y `sale_type = 'fixed_price'`; excluye subastas y valida la información actual del producto al fusionar el carrito. El detalle del flujo está en [CART.md](./CART.md).

@@ -1,7 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 export { formatProductPrice } from "../formatters";
-import type { ProductListing } from "../product-utils";
+import { formatAuctionBid, type AuctionBid, type AuctionProduct, type ProductListing } from "../product-utils";
 export type { ProductListing } from "../product-utils";
 export { getActiveDiscountPrice, getDiscountLabel, getProductImage } from "../product-utils";
 
@@ -106,13 +106,7 @@ export async function getProductById(productId: number): Promise<ProductListing 
 	const supabase = await createSupabaseServerClient();
 	const { data, error } = await supabase
 		.from("products")
-		.select(`
-			*,
-			seller:profiles!fk_products_profiles (
-				id,
-				full_name
-			)
-		`)
+		.select("*")
 		.eq("id", productId)
 		.single();
 
@@ -159,3 +153,100 @@ export async function getProductBySlug(slug: string): Promise<ProductListing | n
 	return data as ProductListing | null;
 }
 
+export async function getActiveAuctions(): Promise<AuctionProduct[]> {
+	const supabase = await createSupabaseServerClient();
+	const { data, error } = await supabase
+		.from("products")
+		.select(`
+			*,
+			seller:profiles!fk_products_profiles (
+				id,
+				full_name
+			)
+		`)
+		.eq("sale_type", "auction")
+		.eq("status", true)
+		.gt("auction_ends_at", new Date().toISOString())
+		.order("auction_ends_at", { ascending: true });
+
+	if (error) {
+		logQueryError("las subastas activas", error.message);
+		throw new Error(`No se pudieron cargar las subastas activas: ${error.message}`);
+	}
+
+	return (data ?? []) as AuctionProduct[];
+}
+
+export async function getAuctionById(productId: number): Promise<AuctionProduct | null> {
+	const supabase = await createSupabaseServerClient();
+	const { data, error } = await supabase
+		.from("products")
+		.select(`
+			*,
+			seller:profiles!fk_products_profiles (
+				id,
+				full_name
+			)
+		`)
+		.eq("id", productId)
+		.eq("sale_type", "auction")
+		.maybeSingle();
+
+	if (error) {
+		logQueryError("la subasta", error.message);
+		throw new Error(`No se pudo cargar la subasta: ${error.message}`);
+	}
+
+	return data as AuctionProduct | null;
+}
+
+export async function getAuctionBids(productId: number): Promise<AuctionBid[]> {
+	const supabase = await createSupabaseServerClient();
+	const { data, error } = await supabase
+		.from("bids")
+		.select(`
+			id,
+			product_id,
+			bidder_id,
+			amount,
+			created_at,
+			profiles:profiles!fk_bids_profiles (
+				full_name
+			)
+		`)
+		.eq("product_id", productId)
+		.order("created_at", { ascending: false })
+		.limit(20);
+
+	if (error) {
+		logQueryError("las pujas de la subasta", error.message);
+		throw new Error(`No se pudieron cargar las pujas: ${error.message}`);
+	}
+
+	return (data ?? []).flatMap((row) => {
+		const bid = formatAuctionBid(row);
+		if (!bid) {
+			console.error("Se omitió una puja inicial con formato inválido:", row);
+			return [];
+		}
+		return [bid];
+	});
+}
+
+export async function getAuctionWinnerName(winnerId: string | null): Promise<string | null> {
+	if (!winnerId) return null;
+
+	const supabase = await createSupabaseServerClient();
+	const { data, error } = await supabase
+		.from("profiles")
+		.select("full_name")
+		.eq("id", winnerId)
+		.maybeSingle();
+
+	if (error) {
+		logQueryError("el perfil del ganador", error.message);
+		throw new Error(`No se pudo cargar el perfil del ganador: ${error.message}`);
+	}
+
+	return data?.full_name ?? null;
+}

@@ -195,6 +195,9 @@ export default function SellProductPage() {
 	const [slugSuffix, setSlugSuffix] = useState("");
 	const [description, setDescription] = useState("");
 	const [price, setPrice] = useState("");
+	const [startingPrice, setStartingPrice] = useState("");
+	const [bidIncrement, setBidIncrement] = useState("5000");
+	const [auctionDurationHours, setAuctionDurationHours] = useState("24");
 	const [discountPrice, setDiscountPrice] = useState("");
 	const [offerDurationHours, setOfferDurationHours] = useState("24");
 	const [isFeatured, setIsFeatured] = useState(false);
@@ -214,10 +217,25 @@ export default function SellProductPage() {
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [successMessage, setSuccessMessage] = useState<string | null>(null);
 	const slug = name.trim() && slugSuffix ? `${toSlug(name)}-${slugSuffix}` : "";
-	const formattedPrice = price
-		? new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(price))
+	const activePrice = isAuction ? startingPrice : price;
+	const formattedPrice = activePrice
+		? new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(activePrice))
 		: "Precio por definir";
-	const invalidDiscountPrice = discountPrice.trim() !== "" && (
+	const invalidPrice = !isAuction && (
+		price.trim() === "" || !Number.isFinite(Number(price)) || Number(price) < 0
+	);
+	const invalidAuctionTerms = isAuction && (
+		startingPrice.trim() === "" ||
+		!Number.isFinite(Number(startingPrice)) ||
+		Number(startingPrice) < 0 ||
+		!Number.isFinite(Number(bidIncrement)) ||
+		Number(bidIncrement) <= 0 ||
+		!["24", "48", "168", "336"].includes(auctionDurationHours)
+	);
+	const invalidStock = stock.trim() === "" ||
+		!Number.isSafeInteger(Number(stock)) ||
+		Number(stock) < (isAuction ? 1 : 0);
+	const invalidDiscountPrice = !isAuction && discountPrice.trim() !== "" && (
 		!Number.isFinite(Number(discountPrice)) || Number(discountPrice) >= Number(price)
 	);
 
@@ -273,6 +291,23 @@ export default function SellProductPage() {
 		setErrorMessage(null);
 		setSuccessMessage(null);
 
+		if (invalidPrice) {
+			setErrorMessage("Ingresa un precio válido para la publicación.");
+			return;
+		}
+
+		if (invalidAuctionTerms) {
+			setErrorMessage("Ingresa un precio inicial, un incremento positivo y una duración válida para la subasta.");
+			return;
+		}
+
+		if (invalidStock) {
+			setErrorMessage(isAuction
+				? "Una subasta debe tener al menos una unidad disponible."
+				: "Ingresa una cantidad de stock válida.");
+			return;
+		}
+
 		if (invalidDiscountPrice) {
 			setErrorMessage("El precio de oferta debe ser estrictamente menor que el precio normal.");
 			return;
@@ -289,7 +324,7 @@ export default function SellProductPage() {
 
 			const productSlug = slug || `${toSlug(name)}-${createSlugSuffix()}`;
 			const now = new Date();
-			const parsedDiscountPrice = discountPrice.trim() ? Number(discountPrice) : null;
+			const parsedDiscountPrice = !isAuction && discountPrice.trim() ? Number(discountPrice) : null;
 			const { data: product, error: productError } = await supabase.from("products").insert({
 				seller_id: user.id,
 				store_id: storeId ? Number(storeId) : null,
@@ -297,7 +332,7 @@ export default function SellProductPage() {
 				name: name.trim(),
 				slug: productSlug,
 				description: description.trim() || null,
-				price: Number(price),
+				price: isAuction ? null : Number(price),
 				discount_price: parsedDiscountPrice,
 				offer_ends_at: parsedDiscountPrice !== null
 					? new Date(now.getTime() + Number(offerDurationHours) * 60 * 60 * 1000).toISOString()
@@ -312,6 +347,13 @@ export default function SellProductPage() {
 				images: [],
 				sale_type: isAuction ? "auction" : "direct",
 				is_auction: isAuction,
+				starting_price: isAuction ? Number(startingPrice) : null,
+				current_bid: null,
+				bid_increment: isAuction ? Number(bidIncrement) : null,
+				auction_ends_at: isAuction
+					? new Date(now.getTime() + Number(auctionDurationHours) * 60 * 60 * 1000).toISOString()
+					: null,
+				winner_id: null,
 				shipping_available: shippingAvailable,
 			}).select("id").single();
 
@@ -342,6 +384,9 @@ export default function SellProductPage() {
 			setSlugSuffix(createSlugSuffix());
 			setDescription("");
 			setPrice("");
+			setStartingPrice("");
+			setBidIncrement("5000");
+			setAuctionDurationHours("24");
 			setDiscountPrice("");
 			setOfferDurationHours("24");
 			setIsFeatured(false);
@@ -418,22 +463,55 @@ export default function SellProductPage() {
 								</div>
 
 								<div className="grid gap-4 sm:grid-cols-2">
-									<div className="space-y-2">
-										<Label htmlFor="price">Precio</Label>
-										<Input id="price" type="number" min="0" step="any" value={price} onChange={(event) => setPrice(event.target.value)} required />
-									</div>
+									{isAuction ? (
+										<div className="space-y-2">
+											<Label htmlFor="startingPrice">Precio inicial de la subasta (CLP)</Label>
+											<Input id="startingPrice" type="number" min="0" step="1" value={startingPrice} onChange={(event) => setStartingPrice(event.target.value)} required />
+										</div>
+									) : (
+										<div className="space-y-2">
+											<Label htmlFor="price">Precio (CLP)</Label>
+											<Input id="price" type="number" min="0" step="1" value={price} onChange={(event) => setPrice(event.target.value)} required />
+										</div>
+									)}
 									<div className="space-y-2">
 										<Label htmlFor="stock">Stock</Label>
-										<Input id="stock" type="number" min="0" step="any" value={stock} onChange={(event) => setStock(event.target.value)} required />
+										<Input id="stock" type="number" min={isAuction ? "1" : "0"} step="1" value={stock} onChange={(event) => setStock(event.target.value)} required />
 									</div>
 								</div>
 
-								<Tabs defaultValue="offer" className="w-full rounded-md border border-border p-4">
-									<TabsList className="grid w-full grid-cols-2">
-										<TabsTrigger value="offer">Ofertas</TabsTrigger>
+								{isAuction && (
+									<div className="space-y-4 rounded-md border border-border p-4">
+										<div>
+											<h2 className="text-sm font-semibold text-foreground">Condiciones de la subasta</h2>
+											<p className="mt-1 text-xs text-muted-foreground">
+												El precio inicial, el incremento y el vencimiento se guardan en los campos propios de la subasta.
+											</p>
+										</div>
+										<div className="grid gap-4 sm:grid-cols-2">
+											<div className="space-y-2">
+												<Label htmlFor="bidIncrement">Incremento mínimo (CLP)</Label>
+												<Input id="bidIncrement" type="number" min="1" step="1" value={bidIncrement} onChange={(event) => setBidIncrement(event.target.value)} required />
+											</div>
+											<div className="space-y-2">
+												<Label htmlFor="auctionDuration">Duración de la subasta</Label>
+												<select id="auctionDuration" value={auctionDurationHours} onChange={(event) => setAuctionDurationHours(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm">
+													<option value="24">24 horas</option>
+													<option value="48">48 horas</option>
+													<option value="168">7 días</option>
+													<option value="336">14 días</option>
+												</select>
+											</div>
+										</div>
+									</div>
+								)}
+
+								<Tabs key={isAuction ? "auction" : "direct"} defaultValue={isAuction ? "featured" : "offer"} className="w-full rounded-md border border-border p-4">
+									<TabsList className={`grid w-full ${isAuction ? "grid-cols-1" : "grid-cols-2"}`}>
+										{!isAuction && <TabsTrigger value="offer">Ofertas</TabsTrigger>}
 										<TabsTrigger value="featured">Destacados</TabsTrigger>
 									</TabsList>
-									<TabsContent value="offer" className="space-y-4 pt-4">
+									{!isAuction && <TabsContent value="offer" className="space-y-4 pt-4">
 										<div className="space-y-2">
 											<Label htmlFor="discountPrice">Precio de oferta (opcional)</Label>
 											<Input
@@ -459,7 +537,7 @@ export default function SellProductPage() {
 												<option value="168">7 días</option>
 											</select>
 										</div>
-									</TabsContent>
+									</TabsContent>}
 									<TabsContent value="featured" className="space-y-4 pt-4">
 										<Button type="button" variant={isFeatured ? "default" : "outline"} aria-pressed={isFeatured} onClick={() => setIsFeatured((current) => !current)} className="w-full justify-start">
 											<Sparkles className="h-4 w-4" aria-hidden="true" />
@@ -520,7 +598,7 @@ export default function SellProductPage() {
 									>
 										<UploadCloud className="mx-auto mb-2 h-6 w-6 text-brand-700" aria-hidden="true" />
 										<p className="text-sm font-medium text-foreground">Arrastra imágenes aquí</p>
-										<p className="mt-1 text-xs text-muted-foreground">Hasta 5 imágenes. La carga a Cloudflare se integrará próximamente.</p>
+										<p className="mt-1 text-xs text-muted-foreground">Hasta 5 imágenes. Se guardarán en el almacenamiento de productos.</p>
 										<input
 											ref={imageInputRef}
 											id="images"
@@ -545,7 +623,16 @@ export default function SellProductPage() {
 
 								<div className="space-y-3">
 									<label className="flex items-center gap-2 text-sm text-foreground">
-										<input type="checkbox" checked={isAuction} onChange={(event) => setIsAuction(event.target.checked)} className="h-4 w-4 accent-brand-600" />
+										<input
+											type="checkbox"
+											checked={isAuction}
+											onChange={(event) => {
+												const checked = event.target.checked;
+												setIsAuction(checked);
+												if (checked) setDiscountPrice("");
+											}}
+											className="h-4 w-4 accent-brand-600"
+										/>
 										Publicar como subasta
 									</label>
 									<label className="flex items-center gap-2 text-sm text-foreground">
@@ -586,7 +673,15 @@ export default function SellProductPage() {
 								<h2 className="wrap-break-word text-xl font-bold text-foreground">{name.trim() || "Nombre del producto"}</h2>
 								<p className="whitespace-pre-wrap wrap-break-word text-sm text-muted-foreground">{description.trim() || "La descripción del producto aparecerá aquí."}</p>
 								<div className="flex flex-wrap items-baseline gap-2">
-									{discountPrice && !invalidDiscountPrice ? (
+									{isAuction ? (
+										<div>
+											<p className="text-xs text-muted-foreground">Precio inicial</p>
+											<p className="text-2xl font-extrabold text-foreground">{formattedPrice}</p>
+											<p className="mt-1 text-sm text-muted-foreground">
+												Incremento: {new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(bidIncrement) || 0)}
+											</p>
+										</div>
+									) : discountPrice && !invalidDiscountPrice ? (
 										<>
 											<p className="text-2xl font-extrabold text-foreground">
 												{new Intl.NumberFormat("es-CL", { style: "currency", currency: "CLP", maximumFractionDigits: 0 }).format(Number(discountPrice))}
