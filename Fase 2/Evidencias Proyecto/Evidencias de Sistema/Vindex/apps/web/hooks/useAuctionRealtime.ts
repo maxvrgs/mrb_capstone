@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import {
+  ANTI_SNIPING_WINDOW_MS,
   formatAuctionBid,
   parseFiniteNumber,
   type AuctionBid,
@@ -14,6 +15,8 @@ type AuctionRealtimeState = {
   bids: AuctionBid[];
   isConnected: boolean;
   realtimeError: string | null;
+  showExtensionNotice: boolean;
+  refreshAuctionProduct: () => Promise<{ auctionEnd: string | null; error: string | null }>;
 };
 
 export function useAuctionRealtime(
@@ -26,15 +29,74 @@ export function useAuctionRealtime(
   const [bids, setBids] = useState(initialBids);
   const [isConnected, setIsConnected] = useState(false);
   const [realtimeError, setRealtimeError] = useState<string | null>(null);
+  const [showExtensionNotice, setShowExtensionNotice] = useState(false);
+  const currentAuctionEnd = useRef(initialProduct.auction_ends_at);
+  const extensionNoticeTimeout = useRef<number | null>(null);
+
+  const applyProductUpdate = useCallback((updatedProduct: Record<string, unknown>) => {
+    const updatedAuctionEnd =
+      typeof updatedProduct.auction_ends_at === "string" || updatedProduct.auction_ends_at === null
+        ? updatedProduct.auction_ends_at
+        : undefined;
+    const currentBid =
+      updatedProduct.current_bid === null
+        ? null
+        : parseFiniteNumber(updatedProduct.current_bid);
+
+    if (updatedAuctionEnd !== undefined) {
+      const previousEndMs = currentAuctionEnd.current
+        ? new Date(currentAuctionEnd.current).getTime()
+        : Number.NaN;
+      const updatedEndMs = updatedAuctionEnd ? new Date(updatedAuctionEnd).getTime() : Number.NaN;
+      if (Number.isFinite(previousEndMs) && Number.isFinite(updatedEndMs) && updatedEndMs > previousEndMs) {
+        setShowExtensionNotice(true);
+        if (extensionNoticeTimeout.current !== null) window.clearTimeout(extensionNoticeTimeout.current);
+        extensionNoticeTimeout.current = window.setTimeout(() => setShowExtensionNotice(false), 7000);
+      }
+      currentAuctionEnd.current = updatedAuctionEnd;
+    }
+
+    setProduct((currentProduct) => ({
+      ...currentProduct,
+      ...(currentBid !== null || updatedProduct.current_bid === null
+        ? { current_bid: currentBid }
+        : {}),
+      ...(updatedAuctionEnd !== undefined
+        ? { auction_ends_at: updatedAuctionEnd }
+        : {}),
+      ...(typeof updatedProduct.winner_id === "string" || updatedProduct.winner_id === null
+        ? { winner_id: updatedProduct.winner_id }
+        : {}),
+    }));
+  }, []);
+
+  const refreshAuctionProduct = useCallback(async () => {
+    const { data, error } = await supabase
+      .from("products")
+      .select("current_bid, auction_ends_at, winner_id")
+      .eq("id", productId)
+      .maybeSingle();
+
+    if (error) {
+      console.error("[Realtime] No se pudo consultar el estado actual de la subasta:", error.message);
+      return { auctionEnd: null, error: error.message };
+    }
+    if (!data) return { auctionEnd: null, error: "No se encontró la subasta." };
+
+    applyProductUpdate(data);
+    return { auctionEnd: data.auction_ends_at, error: null };
+  }, [applyProductUpdate, productId, supabase]);
 
   useEffect(() => {
     setProduct(initialProduct);
     setBids(initialBids);
+    currentAuctionEnd.current = initialProduct.auction_ends_at;
   }, [productId, initialProduct, initialBids]);
 
   useEffect(() => {
     setIsConnected(false);
     setRealtimeError(null);
+    setShowExtensionNotice(false);
     const numericProductId = Number(productId);
     if (!Number.isSafeInteger(numericProductId) || numericProductId <= 0) {
       const message = `ID de subasta inválido: ${String(productId)}`;
@@ -62,6 +124,12 @@ export function useAuctionRealtime(
       });
       updateCurrentBid(bid.amount);
       setRealtimeError(null);
+    };
+
+    const syncProductAfterLateBid = async () => {
+      const endMs = currentAuctionEnd.current ? new Date(currentAuctionEnd.current).getTime() : Number.NaN;
+      if (!Number.isFinite(endMs) || endMs <= Date.now() || endMs - Date.now() > ANTI_SNIPING_WINDOW_MS) return;
+      await refreshAuctionProduct();
     };
 
     const getProfileName = (profile: unknown): string | null => {
@@ -105,6 +173,7 @@ export function useAuctionRealtime(
       }
 
       addBidIfMissing(bid);
+      await syncProductAfterLateBid();
     };
 
     const channel = supabase
@@ -156,6 +225,7 @@ export function useAuctionRealtime(
             bidder_name: profileName,
           };
           addBidIfMissing(fullBid);
+          await syncProductAfterLateBid();
         },
       )
       .on(
@@ -168,23 +238,7 @@ export function useAuctionRealtime(
         },
         (payload) => {
           console.log("[Realtime Product Update Received]:", payload);
-          const updatedProduct = payload.new as Record<string, unknown>;
-          const currentBid =
-            updatedProduct.current_bid === null
-              ? null
-              : parseFiniteNumber(updatedProduct.current_bid);
-          setProduct((currentProduct) => ({
-            ...currentProduct,
-            ...(currentBid !== null || updatedProduct.current_bid === null
-              ? { current_bid: currentBid }
-              : {}),
-            ...(typeof updatedProduct.auction_ends_at === "string" || updatedProduct.auction_ends_at === null
-              ? { auction_ends_at: updatedProduct.auction_ends_at }
-              : {}),
-            ...(typeof updatedProduct.winner_id === "string" || updatedProduct.winner_id === null
-              ? { winner_id: updatedProduct.winner_id }
-              : {}),
-          }));
+          applyProductUpdate(payload.new as Record<string, unknown>);
         },
       )
       .subscribe((status, error) => {
@@ -206,9 +260,13 @@ export function useAuctionRealtime(
       });
 
     return () => {
+      if (extensionNoticeTimeout.current !== null) {
+        window.clearTimeout(extensionNoticeTimeout.current);
+        extensionNoticeTimeout.current = null;
+      }
       void supabase.removeChannel(channel);
     };
-  }, [productId, supabase]);
+  }, [applyProductUpdate, productId, refreshAuctionProduct, supabase]);
 
-  return { product, bids, isConnected, realtimeError } satisfies AuctionRealtimeState;
+  return { product, bids, isConnected, realtimeError, showExtensionNotice, refreshAuctionProduct } satisfies AuctionRealtimeState;
 }

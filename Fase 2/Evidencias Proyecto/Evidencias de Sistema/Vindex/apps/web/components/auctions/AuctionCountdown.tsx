@@ -47,7 +47,7 @@ export function AuctionCountdown({
 }) {
   const remainingSeconds = useAuctionCountdown(endsAt);
   const isClosed = remainingSeconds === 0;
-  const isUrgent = remainingSeconds !== null && remainingSeconds > 0 && remainingSeconds < 600;
+  const isUrgent = remainingSeconds !== null && remainingSeconds > 0 && remainingSeconds <= 180;
   const formatted = remainingSeconds === null ? null : formatCountdown(remainingSeconds);
   const hasValidEnd = Boolean(endsAt && Number.isFinite(new Date(endsAt).getTime()));
 

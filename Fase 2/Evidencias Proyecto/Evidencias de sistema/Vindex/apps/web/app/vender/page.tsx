@@ -3,7 +3,8 @@
 import { memo, useCallback, useEffect, useRef, useState } from "react";
 import type { FormEvent } from "react";
 import { useRouter } from "next/navigation";
-import { ImagePlus, Sparkles, UploadCloud, X } from "lucide-react";
+import { CircleHelp, CreditCard, ImagePlus, Sparkles, UploadCloud, X } from "lucide-react";
+import { Dialog } from "@base-ui/react/dialog";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -22,6 +23,10 @@ type SelectedImage = {
 	file: File;
 	previewUrl: string;
 };
+
+type ProductCategory = { id: number; name: string };
+
+const numberInputClassName = "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
 const SelectedImageList = memo(function SelectedImageList({
 	images,
@@ -200,17 +205,21 @@ export default function SellProductPage() {
 	const [auctionDurationHours, setAuctionDurationHours] = useState("24");
 	const [discountPrice, setDiscountPrice] = useState("");
 	const [offerDurationHours, setOfferDurationHours] = useState("24");
-	const [isFeatured, setIsFeatured] = useState(false);
+	const [customOfferDurationHours, setCustomOfferDurationHours] = useState("24");
 	const [featuredDurationDays, setFeaturedDurationDays] = useState("7");
 	const [stock, setStock] = useState("1");
 	const [condition, setCondition] = useState("Nuevo");
 	const [categoryId, setCategoryId] = useState("");
+	const [categories, setCategories] = useState<ProductCategory[]>([]);
+	const [categoriesLoading, setCategoriesLoading] = useState(true);
+	const [categoriesError, setCategoriesError] = useState<string | null>(null);
 	const [storeId, setStoreId] = useState("");
 	const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
 	const [isDraggingImages, setIsDraggingImages] = useState(false);
 	const imageInputRef = useRef<HTMLInputElement>(null);
 	const imagePreviewUrls = useRef(new Set<string>());
 	const [isAuction, setIsAuction] = useState(false);
+	const [showFeaturedInfo, setShowFeaturedInfo] = useState(false);
 	const [shippingAvailable, setShippingAvailable] = useState(true);
 	const [isPublished, setIsPublished] = useState(true);
 	const [saving, setSaving] = useState(false);
@@ -230,7 +239,7 @@ export default function SellProductPage() {
 		Number(startingPrice) < 0 ||
 		!Number.isFinite(Number(bidIncrement)) ||
 		Number(bidIncrement) <= 0 ||
-		!["24", "48", "168", "336"].includes(auctionDurationHours)
+		!["0.08333333333333333", "24", "48", "168", "336"].includes(auctionDurationHours)
 	);
 	const invalidStock = stock.trim() === "" ||
 		!Number.isSafeInteger(Number(stock)) ||
@@ -238,6 +247,14 @@ export default function SellProductPage() {
 	const invalidDiscountPrice = !isAuction && discountPrice.trim() !== "" && (
 		!Number.isFinite(Number(discountPrice)) || Number(discountPrice) >= Number(price)
 	);
+	const invalidOfferDuration = !isAuction && discountPrice.trim() !== "" && (
+		offerDurationHours === "custom"
+			? !Number.isSafeInteger(Number(customOfferDurationHours)) || Number(customOfferDurationHours) < 1
+			: !["24", "48", "168"].includes(offerDurationHours)
+	);
+	const parsedOfferDurationHours = offerDurationHours === "custom"
+		? Number(customOfferDurationHours)
+		: Number(offerDurationHours);
 
 	useEffect(() => {
 		let isCurrent = true;
@@ -260,6 +277,28 @@ export default function SellProductPage() {
 			isCurrent = false;
 		};
 	}, [router, supabase]);
+
+	useEffect(() => {
+		if (!authorized) return;
+		let isCurrent = true;
+
+		const loadCategories = async () => {
+			const { data, error } = await supabase
+				.from("categories")
+				.select("id, name")
+				.order("name", { ascending: true });
+
+			if (!isCurrent) return;
+			if (error) setCategoriesError(error.message);
+			else setCategories((data ?? []) as ProductCategory[]);
+			setCategoriesLoading(false);
+		};
+
+		void loadCategories();
+		return () => {
+			isCurrent = false;
+		};
+	}, [authorized, supabase]);
 
 	useEffect(() => () => {
 		imagePreviewUrls.current.forEach((previewUrl) => URL.revokeObjectURL(previewUrl));
@@ -313,6 +352,11 @@ export default function SellProductPage() {
 			return;
 		}
 
+		if (invalidOfferDuration) {
+			setErrorMessage("Ingresa una duración de oferta personalizada válida (al menos 1 hora).");
+			return;
+		}
+
 		setSaving(true);
 
 		try {
@@ -335,12 +379,10 @@ export default function SellProductPage() {
 				price: isAuction ? null : Number(price),
 				discount_price: parsedDiscountPrice,
 				offer_ends_at: parsedDiscountPrice !== null
-					? new Date(now.getTime() + Number(offerDurationHours) * 60 * 60 * 1000).toISOString()
+					? new Date(now.getTime() + parsedOfferDurationHours * 60 * 60 * 1000).toISOString()
 					: null,
-				is_featured: isFeatured,
-				featured_until: isFeatured
-					? new Date(now.getTime() + Number(featuredDurationDays) * 24 * 60 * 60 * 1000).toISOString()
-					: null,
+				is_featured: false,
+				featured_until: null,
 				stock: Number(stock),
 				condition,
 				status: isPublished,
@@ -389,7 +431,7 @@ export default function SellProductPage() {
 			setAuctionDurationHours("24");
 			setDiscountPrice("");
 			setOfferDurationHours("24");
-			setIsFeatured(false);
+			setCustomOfferDurationHours("24");
 			setFeaturedDurationDays("7");
 			setStock("1");
 			setCondition("Nuevo");
@@ -437,6 +479,13 @@ export default function SellProductPage() {
 						</CardHeader>
 						<CardContent>
 							<form onSubmit={handleSubmit} className="space-y-5">
+								<fieldset className="space-y-2">
+									<legend className="text-sm font-medium text-foreground">Tipo de publicación</legend>
+									<div className="grid grid-cols-2 gap-2 rounded-md bg-muted p-1">
+										<Button type="button" variant={!isAuction ? "default" : "ghost"} aria-pressed={!isAuction} onClick={() => setIsAuction(false)} className="w-full">Venta</Button>
+										<Button type="button" variant={isAuction ? "default" : "ghost"} aria-pressed={isAuction} onClick={() => { setIsAuction(true); setDiscountPrice(""); }} className="w-full">Subasta</Button>
+									</div>
+								</fieldset>
 								<div className="space-y-2">
 									<Label htmlFor="name">Nombre</Label>
 									<Input
@@ -466,17 +515,17 @@ export default function SellProductPage() {
 									{isAuction ? (
 										<div className="space-y-2">
 											<Label htmlFor="startingPrice">Precio inicial de la subasta (CLP)</Label>
-											<Input id="startingPrice" type="number" min="0" step="1" value={startingPrice} onChange={(event) => setStartingPrice(event.target.value)} required />
+											<Input id="startingPrice" className={numberInputClassName} type="number" min="0" step="1" value={startingPrice} onChange={(event) => setStartingPrice(event.target.value)} required />
 										</div>
 									) : (
 										<div className="space-y-2">
 											<Label htmlFor="price">Precio (CLP)</Label>
-											<Input id="price" type="number" min="0" step="1" value={price} onChange={(event) => setPrice(event.target.value)} required />
+											<Input id="price" className={numberInputClassName} type="number" min="0" step="1" value={price} onChange={(event) => setPrice(event.target.value)} required />
 										</div>
 									)}
 									<div className="space-y-2">
 										<Label htmlFor="stock">Stock</Label>
-										<Input id="stock" type="number" min={isAuction ? "1" : "0"} step="1" value={stock} onChange={(event) => setStock(event.target.value)} required />
+										<Input id="stock" className={numberInputClassName} type="number" min={isAuction ? "1" : "0"} step="1" value={stock} onChange={(event) => setStock(event.target.value)} required />
 									</div>
 								</div>
 
@@ -491,11 +540,12 @@ export default function SellProductPage() {
 										<div className="grid gap-4 sm:grid-cols-2">
 											<div className="space-y-2">
 												<Label htmlFor="bidIncrement">Incremento mínimo (CLP)</Label>
-												<Input id="bidIncrement" type="number" min="1" step="1" value={bidIncrement} onChange={(event) => setBidIncrement(event.target.value)} required />
+												<Input id="bidIncrement" className={numberInputClassName} type="number" min="1" step="1" value={bidIncrement} onChange={(event) => setBidIncrement(event.target.value)} required />
 											</div>
 											<div className="space-y-2">
 												<Label htmlFor="auctionDuration">Duración de la subasta</Label>
 												<select id="auctionDuration" value={auctionDurationHours} onChange={(event) => setAuctionDurationHours(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm">
+													<option value="0.08333333333333333">5 minutos</option>
 													<option value="24">24 horas</option>
 													<option value="48">48 horas</option>
 													<option value="168">7 días</option>
@@ -516,6 +566,7 @@ export default function SellProductPage() {
 											<Label htmlFor="discountPrice">Precio de oferta (opcional)</Label>
 											<Input
 												id="discountPrice"
+												className={numberInputClassName}
 												type="number"
 												min="0"
 												step="any"
@@ -535,23 +586,40 @@ export default function SellProductPage() {
 												<option value="24">24 horas</option>
 												<option value="48">48 horas</option>
 												<option value="168">7 días</option>
+												<option value="custom">Personalizada</option>
 											</select>
+											{offerDurationHours === "custom" && (
+												<div className="space-y-2">
+													<Label htmlFor="customOfferDuration">Duración personalizada (horas)</Label>
+													<Input id="customOfferDuration" className={numberInputClassName} type="number" min="1" step="1" value={customOfferDurationHours} onChange={(event) => setCustomOfferDurationHours(event.target.value)} required />
+												</div>
+											)}
 										</div>
 									</TabsContent>}
 									<TabsContent value="featured" className="space-y-4 pt-4">
-										<Button type="button" variant={isFeatured ? "default" : "outline"} aria-pressed={isFeatured} onClick={() => setIsFeatured((current) => !current)} className="w-full justify-start">
-											<Sparkles className="h-4 w-4" aria-hidden="true" />
-											{isFeatured ? "Producto destacado" : "Destacar producto (Promoción)"}
-										</Button>
+										<div className="flex items-center justify-between gap-2">
+											<div>
+												<h2 className="text-sm font-semibold text-foreground">Promoción pagada</h2>
+												<p className="text-xs text-muted-foreground">Elige cuánto tiempo destacar el producto.</p>
+											</div>
+											<Button type="button" variant="ghost" size="icon" aria-label="Cómo funcionan los destacados" onClick={() => setShowFeaturedInfo(true)}>
+												<CircleHelp className="h-4 w-4" aria-hidden="true" />
+											</Button>
+										</div>
 										<div className="space-y-2">
 											<Label htmlFor="featuredDuration">Duración del destacado</Label>
-											<select id="featuredDuration" value={featuredDurationDays} onChange={(event) => setFeaturedDurationDays(event.target.value)} disabled={!isFeatured} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm disabled:cursor-not-allowed disabled:opacity-50">
+											<select id="featuredDuration" value={featuredDurationDays} onChange={(event) => setFeaturedDurationDays(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm">
 												<option value="1">1 día</option>
 												<option value="3">3 días</option>
 												<option value="7">7 días</option>
 												<option value="14">14 días</option>
 											</select>
 										</div>
+										<Button type="button" disabled className="w-full">
+											<CreditCard className="h-4 w-4" aria-hidden="true" />
+											Comprar destacado
+										</Button>
+										<p id="featured-payment-status" className="text-xs text-muted-foreground">El pago de publicidad aún no está habilitado. El producto no se activará como destacado hasta completar una compra.</p>
 									</TabsContent>
 								</Tabs>
 
@@ -570,8 +638,10 @@ export default function SellProductPage() {
 									<div className="space-y-2">
 										<Label htmlFor="categoryId">Categoría</Label>
 										<select id="categoryId" value={categoryId} onChange={(event) => setCategoryId(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm">
-											<option value="">Categorías disponibles próximamente</option>
+											<option value="">{categoriesLoading ? "Cargando categorías..." : categoriesError ? "No se pudieron cargar" : categories.length ? "Selecciona una categoría" : "No hay categorías disponibles"}</option>
+											{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
 										</select>
+										{categoriesError && <p role="alert" className="text-xs text-red-700">{categoriesError}</p>}
 									</div>
 									<div className="space-y-2">
 										<Label htmlFor="storeId">Tienda</Label>
@@ -622,19 +692,6 @@ export default function SellProductPage() {
 								</div>
 
 								<div className="space-y-3">
-									<label className="flex items-center gap-2 text-sm text-foreground">
-										<input
-											type="checkbox"
-											checked={isAuction}
-											onChange={(event) => {
-												const checked = event.target.checked;
-												setIsAuction(checked);
-												if (checked) setDiscountPrice("");
-											}}
-											className="h-4 w-4 accent-brand-600"
-										/>
-										Publicar como subasta
-									</label>
 									<label className="flex items-center gap-2 text-sm text-foreground">
 										<input type="checkbox" checked={shippingAvailable} onChange={(event) => setShippingAvailable(event.target.checked)} className="h-4 w-4 accent-brand-600" />
 										Envío disponible
@@ -702,6 +759,28 @@ export default function SellProductPage() {
 					</Card>
 				</aside>
 			</div>
+			<Dialog.Root open={showFeaturedInfo} onOpenChange={setShowFeaturedInfo}>
+				<Dialog.Portal>
+					<Dialog.Backdrop className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm" />
+					<Dialog.Popup className="fixed left-1/2 top-1/2 z-50 w-[calc(100%-2rem)] max-w-lg -translate-x-1/2 -translate-y-1/2 space-y-4 rounded-lg border border-border bg-surface p-6 text-foreground shadow-xl">
+						<div className="flex items-start gap-3">
+							<span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-brand-50 text-brand-700"><Sparkles className="h-5 w-5" aria-hidden="true" /></span>
+							<div className="space-y-1">
+								<Dialog.Title className="text-lg font-semibold">¿Cómo funcionan los destacados?</Dialog.Title>
+								<Dialog.Description className="text-sm text-muted-foreground">Es publicidad pagada para dar mayor visibilidad a tu producto.</Dialog.Description>
+							</div>
+						</div>
+						<ul className="list-disc space-y-2 pl-5 text-sm text-muted-foreground">
+							<li>El producto aparece en la página principal durante el periodo contratado.</li>
+							<li>La promoción comienza una vez completado el pago.</li>
+						</ul>
+						<p className="rounded-md bg-muted p-3 text-sm text-muted-foreground">El pago de destacados todavía no está disponible, por lo que no se realizará ningún cobro ni activación.</p>
+						<div className="flex justify-end">
+							<Dialog.Close render={<Button type="button" variant="outline">Cerrar</Button>} />
+						</div>
+					</Dialog.Popup>
+				</Dialog.Portal>
+			</Dialog.Root>
 		</main>
 	);
 }

@@ -12,6 +12,8 @@ interface ProductCardProps {
   previousPrice?: string;
   /** Etiqueta de descuento, p. ej. "-31%" */
   discount?: string;
+  saleType?: string | null;
+  currentBid?: number | null;
   /** Vendedor / tienda */
   seller?: string;
 }
@@ -27,12 +29,15 @@ export default function ProductCard({
   image,
   previousPrice,
   discount,
+  saleType,
+  currentBid,
   seller,
 }: ProductCardProps) {
   const router = useRouter();
+  const isAuction = saleType === "auction";
 
   const openProduct = () => {
-    router.push(`/product/${id}`);
+    router.push(isAuction ? `/subastas/${id}` : `/product/${id}`);
   };
 
   return (
@@ -87,6 +92,8 @@ export default function ProductCard({
           {name}
         </h3>
 
+        {isAuction && <span className="badge badge-soft mt-2 w-fit">Subasta</span>}
+
         {seller && (
           <p className="mt-1.5 truncate text-xs text-muted-foreground">
             por {seller}
@@ -94,6 +101,11 @@ export default function ProductCard({
         )}
 
         <div className="mt-auto flex flex-wrap items-baseline gap-x-2 pt-3">
+          {isAuction && (
+            <span className="basis-full text-xs text-muted-foreground">
+              {currentBid !== null && currentBid !== undefined ? "Última puja" : "Precio inicial"}
+            </span>
+          )}
           <span className="text-lg font-extrabold tracking-tight text-foreground">
             {price}
           </span>

@@ -1,3 +1,5 @@
+export const ANTI_SNIPING_WINDOW_MS = 210_000;
+
 export type ProductListing = {
 	id: number;
 	name: string | null;

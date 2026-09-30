@@ -54,7 +54,7 @@ En [la página de venta](../apps/web/app/vender/page.tsx), el vendedor activa **
 
 - Precio inicial (`starting_price`).
 - Incremento mínimo (`bid_increment`), que debe ser mayor que cero.
-- Duración (24 o 48 horas, 7 o 14 días); de ella se calcula `auction_ends_at`.
+- Duración (5 minutos para pruebas, 24 o 48 horas, 7 o 14 días); de ella se calcula `auction_ends_at`.
 - Stock, condición, descripción, imágenes y disponibilidad de envío.
 
 Al guardar se crea la fila en `products` con `sale_type = 'auction'`, `is_auction = true`, `current_bid = NULL` y `winner_id = NULL`. El canal no se crea durante la publicación ni en el catálogo.
@@ -63,7 +63,7 @@ Al guardar se crea la fila en `products` con `sale_type = 'auction'`, `is_auctio
 
 La ruta [app/subastas/page.tsx](../apps/web/app/subastas/page.tsx) usa `getActiveAuctions()` desde [queries.ts](../apps/web/lib/supabase/queries.ts). La consulta obtiene productos activos (`status = true`) de tipo subasta cuya fecha `auction_ends_at` sea posterior al momento actual, y los ordena por vencimiento.
 
-Las tarjetas se implementan en [AuctionCard.tsx](../apps/web/components/auctions/AuctionCard.tsx). Muestran imagen, nombre, oferta actual —`current_bid` o `starting_price` si aún no hay ofertas— y tiempo restante. [AuctionCountdown.tsx](../apps/web/components/auctions/AuctionCountdown.tsx) actualiza la cuenta regresiva localmente cada segundo y señala como «Por finalizar» los últimos diez minutos.
+Las tarjetas se implementan en [AuctionCard.tsx](../apps/web/components/auctions/AuctionCard.tsx). Muestran imagen, nombre, oferta actual —`current_bid` o `starting_price` si aún no hay ofertas— y tiempo restante. [AuctionCountdown.tsx](../apps/web/components/auctions/AuctionCountdown.tsx) actualiza la cuenta regresiva localmente cada segundo y señala como «Por finalizar» los últimos tres minutos.
 
 El bloque «Subastas populares» del Home usa [PopularAuctions.tsx](../apps/web/components/PopularAuctions.tsx) y la misma consulta normal. Ninguna de estas listas crea canales WebSocket.
 
@@ -79,6 +79,12 @@ La ruta [app/subastas/[id]/page.tsx](../apps/web/app/subastas/[id]/page.tsx):
 
 La sala muestra la galería, descripción, condición, vendedor, oferta vigente, mínimo siguiente, tiempo restante y pujas recientes. El siguiente monto se calcula como `current_bid + bid_increment`; si aún no hay ofertas, se usa `starting_price`.
 
+### Protección anti-sniping
+
+Cuando se confirma una puja y faltan tres minutos o menos para el cierre, un trigger diferido de base de datos suma cinco minutos a `auction_ends_at`. El trigger acepta una tolerancia de 30 segundos para cubrir desfases entre el reloj del navegador y el de Supabase; por eso puede extender el plazo hasta con 3:30 restantes. La regla se vuelve a aplicar si otra puja válida llega durante esa ventana del nuevo plazo; la subasta termina cuando vence el contador sin nuevas pujas tardías. El trigger actualiza `products` dentro de la misma transacción y la sala recibe el nuevo vencimiento mediante su suscripción Realtime existente. El contador se muestra en rojo cuando quedan tres minutos o menos.
+
+La migración `supabase/migrations/20260929140000_fix_anti_sniping_status_type.sql` compara el estado textual `'true'` y reinstala explícitamente el trigger sobre `public.bids`. Debe aplicarse en Supabase para evitar que las pujas fallen por una incompatibilidad de tipos.
+
 Al llegar el contador a cero, se deshabilita el formulario y se presenta el ganador si `winner_id` está definido. El ganador se consulta en `public.profiles`.
 
 ### Envío de una puja
@@ -92,7 +98,7 @@ const { error } = await supabase.rpc("place_bid", {
 });
 ```
 
-El backend valida y registra la puja de forma transaccional. La interfaz valida el monto mínimo, presenta el estado de carga y muestra cualquier error devuelto por la RPC. El mensaje de éxito indica que espera la confirmación de la sala en vivo; el feed se actualiza con el evento Realtime.
+El backend valida y registra la puja de forma transaccional. La interfaz valida el monto mínimo, presenta el estado de carga y muestra cualquier error devuelto por la RPC. Tras una puja confirmada, el cliente consulta el estado actual de `products` para sincronizar de inmediato el vencimiento de quien ofertó; el canal Realtime sigue sincronizando a los demás participantes. Si la puja fue durante los últimos tres minutos y Supabase devuelve el mismo vencimiento, la interfaz advierte que la extensión no se reflejó en la base de datos.
 
 ## Supabase Realtime
 

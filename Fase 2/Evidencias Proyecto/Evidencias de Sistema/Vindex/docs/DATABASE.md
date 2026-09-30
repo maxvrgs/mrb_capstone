@@ -9,7 +9,7 @@ create table public.products (
   price numeric null,
   stock numeric null,
   condition text null,
-  status boolean null,
+  status text null,
   is_featured boolean not null default false,
   featured_until timestamp with time zone null,
   discount_price numeric null,
@@ -32,7 +32,7 @@ create table public.products (
   constraint products_pkey primary key (id)
 ) TABLESPACE pg_default;
 
-En este esquema, `status = true` representa una publicación activa; las consultas de la portada usan ese valor booleano. Los campos promocionales permiten fechas de expiración nulas cuando la promoción correspondiente está desactivada.
+En la base de datos actual, `status` es texto y el valor `'true'` representa una publicación activa. Los campos promocionales permiten fechas de expiración nulas cuando la promoción correspondiente está desactivada.
 
 BUCKET NAME:
 
@@ -76,6 +76,8 @@ supabase.rpc("place_bid", {
 ```
 
 Al publicar una subasta, `price`, `discount_price` y `offer_ends_at` quedan nulos; el formulario guarda el monto inicial en `starting_price`, deja `current_bid` y `winner_id` nulos, define un `bid_increment` positivo y calcula `auction_ends_at` a partir de la duración elegida. En una venta directa, los campos exclusivos de subasta quedan nulos. El perfil retira publicaciones mediante baja lógica (`status = false`) para conservar referencias e historial de pujas.
+
+La migración `supabase/migrations/20260929140000_fix_anti_sniping_status_type.sql` instala el trigger diferido sobre `public.bids`. La función compara `products.status` con el texto `'true'`; cuando una puja se confirma con hasta tres minutos y treinta segundos restantes, extiende `auction_ends_at` cinco minutos dentro de la misma transacción. Las pujas posteriores pueden volver a extender el cierre. Aplicar esta migración en Supabase; la sala sincroniza el nuevo vencimiento mediante el UPDATE de `products` publicado en Realtime.
 
 `public.products` y `public.bids` deben estar incluidas en la publicación `supabase_realtime`. Solo la sala individual `/subastas/[id]` abre un canal, con eventos filtrados por el ID de su producto (`bids` INSERT por `product_id`, `products` UPDATE por `id`) y retira la suscripción al desmontarse. El catálogo `/subastas`, el Home y `/tienda` utilizan consultas estándar; no abren canales de Realtime.
 

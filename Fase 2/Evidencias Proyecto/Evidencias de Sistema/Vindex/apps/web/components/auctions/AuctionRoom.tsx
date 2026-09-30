@@ -11,6 +11,7 @@ import { Input } from "@/components/ui/input";
 import { useAuctionRealtime } from "@/hooks/useAuctionRealtime";
 import { createClient } from "@/lib/supabase/client";
 import {
+  ANTI_SNIPING_WINDOW_MS,
   formatAuctionAmount,
   getProductImage,
   type AuctionBid,
@@ -55,7 +56,7 @@ export default function AuctionRoom({
   initialBids: AuctionBid[];
   initialWinnerName: string | null;
 }) {
-  const { product, bids, isConnected, realtimeError } = useAuctionRealtime(
+  const { product, bids, isConnected, realtimeError, showExtensionNotice, refreshAuctionProduct } = useAuctionRealtime(
     initialProduct.id,
     initialProduct,
     initialBids,
@@ -177,11 +178,36 @@ export default function AuctionRoom({
         p_bid_amount: amount,
       });
       if (error) throw error;
-      setBidMessage("Puja enviada. Esperando confirmación de la sala en vivo.");
+      const previousEndMs = product.auction_ends_at
+        ? new Date(product.auction_ends_at).getTime()
+        : Number.NaN;
+      const wasInAntiSnipingWindow = Number.isFinite(previousEndMs)
+        && previousEndMs > Date.now()
+        && previousEndMs - Date.now() <= ANTI_SNIPING_WINDOW_MS;
+      const { auctionEnd, error: syncError } = await refreshAuctionProduct();
+      const refreshedEndMs = auctionEnd ? new Date(auctionEnd).getTime() : Number.NaN;
+
+      if (syncError) {
+        setBidMessage("Puja confirmada. No se pudo sincronizar el temporizador; actualiza la sala.");
+      } else if (wasInAntiSnipingWindow && (!Number.isFinite(refreshedEndMs) || refreshedEndMs <= previousEndMs)) {
+        setBidError("La puja se confirmó, pero Supabase no extendió el cierre. Revisa el trigger anti-sniping de la base de datos.");
+      } else {
+        setBidMessage("Puja confirmada y estado de la subasta sincronizado.");
+      }
     } catch (error) {
-      const message = error instanceof Error ? error.message : "Ocurrió un error inesperado.";
-      console.error("No se pudo registrar la puja:", message);
-      setBidError(`No se pudo confirmar tu puja: ${message}`);
+      const errorData = typeof error === "object" && error !== null
+        ? error as Record<string, unknown>
+        : {};
+      const message = typeof errorData.message === "string"
+        ? errorData.message
+        : error instanceof Error
+          ? error.message
+          : "Ocurrió un error inesperado.";
+      const errorContext = [errorData.code, errorData.details, errorData.hint]
+        .filter((value): value is string => typeof value === "string" && value.trim() !== "");
+      const diagnosticMessage = [message, ...errorContext].join(" | ");
+      console.error("No se pudo registrar la puja:", error);
+      setBidError(`No se pudo confirmar tu puja: ${diagnosticMessage}`);
     } finally {
       setIsSubmitting(false);
     }
@@ -207,6 +233,11 @@ export default function AuctionRoom({
       {realtimeError && (
         <p role="alert" className="mb-5 rounded-xl border border-destructive/30 bg-destructive/10 p-3 text-sm text-destructive">
           {realtimeError}
+        </p>
+      )}
+      {showExtensionNotice && (
+        <p role="status" className="animate-in fade-in slide-in-from-top-1 mb-5 rounded-xl border border-emerald-300 bg-emerald-50 p-3 text-sm font-medium text-emerald-800 duration-300">
+          ¡Tiempo extendido +5 min por puja tardía!
         </p>
       )}
 
@@ -244,7 +275,7 @@ export default function AuctionRoom({
                 </div>
                 <Badge variant={isClosed ? "destructive" : "secondary"}>
                   {isClosed
-                    ? "Subasta cerrada"
+                    ? "Subasta Finalizada"
                     : canPlaceBids
                       ? "En vivo"
                       : "Validando cierre"}
@@ -272,7 +303,7 @@ export default function AuctionRoom({
 
               {isClosed ? (
                 <div className="rounded-xl border border-border bg-muted/40 p-4">
-                  <p className="font-semibold text-foreground">Subasta cerrada</p>
+                  <p className="font-semibold text-foreground">Subasta Finalizada</p>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {product.winner_id
                       ? `Ganador: ${winnerName ?? "Ganador registrado"}.`
