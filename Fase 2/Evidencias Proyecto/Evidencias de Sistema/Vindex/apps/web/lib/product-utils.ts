@@ -35,6 +35,43 @@ export type AuctionProduct = ProductListing & {
 	winner_id: string | null;
 };
 
+export type AuctionBidLimits = {
+	minimum: number;
+	maximum: number;
+};
+
+export const getAuctionBidLimits = (
+	product: Pick<AuctionProduct, "starting_price" | "current_bid" | "bid_increment">,
+): AuctionBidLimits | null => {
+	const startingPrice = product.starting_price;
+	const referenceAmount = product.current_bid ?? product.starting_price;
+	const increment = product.bid_increment;
+	if (
+		typeof startingPrice !== "number" ||
+		!Number.isSafeInteger(startingPrice) ||
+		startingPrice <= 0 ||
+		typeof referenceAmount !== "number" ||
+		!Number.isSafeInteger(referenceAmount) ||
+		referenceAmount <= 0 ||
+		typeof increment !== "number" ||
+		!Number.isSafeInteger(increment) ||
+		increment <= 0 ||
+		increment > Math.floor(startingPrice * 0.5)
+	) {
+		return null;
+	}
+
+	const minimum = product.current_bid === null
+		? referenceAmount
+		: referenceAmount + increment;
+	const maximum = Math.floor(referenceAmount * 1.5);
+	if (!Number.isSafeInteger(minimum) || !Number.isSafeInteger(maximum) || minimum > maximum) {
+		return null;
+	}
+
+	return { minimum, maximum };
+};
+
 export type AuctionBid = {
 	id: string;
 	product_id: number;

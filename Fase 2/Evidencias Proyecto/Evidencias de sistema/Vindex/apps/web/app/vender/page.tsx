@@ -233,12 +233,19 @@ export default function SellProductPage() {
 	const invalidPrice = !isAuction && (
 		price.trim() === "" || !Number.isFinite(Number(price)) || Number(price) < 0
 	);
+	const parsedStartingPrice = Number(startingPrice);
+	const parsedBidIncrement = Number(bidIncrement);
+	const maximumBidIncrement = Number.isSafeInteger(parsedStartingPrice) && parsedStartingPrice > 0
+		? Math.floor(parsedStartingPrice * 0.5)
+		: null;
 	const invalidAuctionTerms = isAuction && (
 		startingPrice.trim() === "" ||
-		!Number.isFinite(Number(startingPrice)) ||
-		Number(startingPrice) < 0 ||
-		!Number.isFinite(Number(bidIncrement)) ||
-		Number(bidIncrement) <= 0 ||
+		!Number.isSafeInteger(parsedStartingPrice) ||
+		parsedStartingPrice <= 0 ||
+		!Number.isSafeInteger(parsedBidIncrement) ||
+		parsedBidIncrement <= 0 ||
+		maximumBidIncrement === null ||
+		parsedBidIncrement > maximumBidIncrement ||
 		!["0.08333333333333333", "24", "48", "168", "336"].includes(auctionDurationHours)
 	);
 	const invalidStock = stock.trim() === "" ||
@@ -336,7 +343,11 @@ export default function SellProductPage() {
 		}
 
 		if (invalidAuctionTerms) {
-			setErrorMessage("Ingresa un precio inicial, un incremento positivo y una duración válida para la subasta.");
+			setErrorMessage(
+				maximumBidIncrement !== null && parsedBidIncrement > maximumBidIncrement
+					? `El incremento mínimo no puede superar ${new Intl.NumberFormat("es-CL").format(maximumBidIncrement)} CLP (50% del precio inicial).`
+					: "Ingresa un precio inicial y un incremento positivos en pesos enteros, y una duración válida para la subasta.",
+			);
 			return;
 		}
 
@@ -515,7 +526,7 @@ export default function SellProductPage() {
 									{isAuction ? (
 										<div className="space-y-2">
 											<Label htmlFor="startingPrice">Precio inicial de la subasta (CLP)</Label>
-											<Input id="startingPrice" className={numberInputClassName} type="number" min="0" step="1" value={startingPrice} onChange={(event) => setStartingPrice(event.target.value)} required />
+											<Input id="startingPrice" className={numberInputClassName} type="number" min="1" step="1" value={startingPrice} onChange={(event) => setStartingPrice(event.target.value)} required />
 										</div>
 									) : (
 										<div className="space-y-2">
@@ -540,7 +551,11 @@ export default function SellProductPage() {
 										<div className="grid gap-4 sm:grid-cols-2">
 											<div className="space-y-2">
 												<Label htmlFor="bidIncrement">Incremento mínimo (CLP)</Label>
-												<Input id="bidIncrement" className={numberInputClassName} type="number" min="1" step="1" value={bidIncrement} onChange={(event) => setBidIncrement(event.target.value)} required />
+												<Input id="bidIncrement" className={numberInputClassName} type="number" min="1" max={maximumBidIncrement ?? undefined} step="1" value={bidIncrement} onChange={(event) => setBidIncrement(event.target.value)} required />
+												<p className="text-xs text-muted-foreground">
+													El incremento no puede superar el 50% del precio inicial
+													{maximumBidIncrement === null ? "." : ` (${new Intl.NumberFormat("es-CL").format(maximumBidIncrement)} CLP).`}
+												</p>
 											</div>
 											<div className="space-y-2">
 												<Label htmlFor="auctionDuration">Duración de la subasta</Label>

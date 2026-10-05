@@ -3,39 +3,21 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ProductGallery from "@/components/ProductGallery";
-import { AuctionCountdown, useAuctionCountdown } from "@/components/auctions/AuctionCountdown";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { useAuctionRealtime } from "@/hooks/useAuctionRealtime";
+import { useSynchronizedTimer } from "@/hooks/useSynchronizedTimer";
 import { createClient } from "@/lib/supabase/client";
 import {
   ANTI_SNIPING_WINDOW_MS,
   formatAuctionAmount,
+  getAuctionBidLimits,
   getProductImage,
   type AuctionBid,
   type AuctionProduct,
 } from "@/lib/product-utils";
-
-const minimumFor = (product: AuctionProduct) => {
-  if (product.current_bid === null) {
-    return typeof product.starting_price === "number" && Number.isFinite(product.starting_price)
-      ? product.starting_price
-      : null;
-  }
-
-  if (
-    !Number.isFinite(product.current_bid) ||
-    typeof product.bid_increment !== "number" ||
-    !Number.isFinite(product.bid_increment) ||
-    product.bid_increment <= 0
-  ) {
-    return null;
-  }
-
-  return product.current_bid + product.bid_increment;
-};
 
 function formatBidTime(value: string) {
   const date = new Date(value);
@@ -62,24 +44,37 @@ export default function AuctionRoom({
     initialBids,
   );
   const [supabase] = useState(createClient);
+  const {
+    days,
+    hours,
+    minutes,
+    seconds,
+    totalSeconds,
+    isExpired,
+    isSynced,
+    syncError,
+  } = useSynchronizedTimer(product.auction_ends_at);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [bidAmount, setBidAmount] = useState(() => {
-    const minimum = minimumFor(initialProduct);
-    return minimum === null ? "" : String(minimum);
+    const limits = getAuctionBidLimits(initialProduct);
+    return limits === null ? "" : String(limits.minimum);
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [bidError, setBidError] = useState<string | null>(null);
   const [bidMessage, setBidMessage] = useState<string | null>(null);
   const [winnerName, setWinnerName] = useState(initialWinnerName);
   const [winnerError, setWinnerError] = useState<string | null>(null);
-  const remainingSeconds = useAuctionCountdown(product.auction_ends_at);
-  const minimumBid = useMemo(() => minimumFor(product), [product]);
+  const bidLimits = useMemo(() => getAuctionBidLimits(product), [product]);
+  const minimumBid = bidLimits?.minimum ?? null;
+  const maximumBid = bidLimits?.maximum ?? null;
   const currentAmount = product.current_bid ?? product.starting_price;
-  const isClosed = remainingSeconds === 0;
-  const canPlaceBids = remainingSeconds !== null && remainingSeconds > 0;
+  const isClosed = isExpired;
+  const canPlaceBids = isSynced && totalSeconds !== null && totalSeconds > 0;
+  const isAntiSnipingWindow = canPlaceBids && totalSeconds !== null && totalSeconds <= 180;
   const seller = Array.isArray(product.seller) ? product.seller[0] : product.seller;
   const galleryImages = product.images?.length ? product.images : [getProductImage(product)];
+  const padTimer = (value: number) => String(value).padStart(2, "0");
 
   useEffect(() => {
     let isCurrent = true;
@@ -144,17 +139,20 @@ export default function AuctionRoom({
   }, [initialProduct.winner_id, initialWinnerName, product.winner_id, supabase]);
 
   useEffect(() => {
-    if (minimumBid === null) {
+    if (bidLimits === null) {
       setBidAmount("");
       return;
     }
 
     setBidAmount((current) =>
-      current === "" || !Number.isFinite(Number(current)) || Number(current) < minimumBid
-        ? String(minimumBid)
+      current === "" ||
+      !Number.isSafeInteger(Number(current)) ||
+      Number(current) < bidLimits.minimum ||
+      Number(current) > bidLimits.maximum
+        ? String(bidLimits.minimum)
         : current,
     );
-  }, [minimumBid]);
+  }, [bidLimits]);
 
   const submitBid = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -162,11 +160,25 @@ export default function AuctionRoom({
     setBidMessage(null);
 
     const amount = Number(bidAmount);
-    if (!Number.isFinite(amount) || minimumBid === null || amount < minimumBid) {
+    if (!canPlaceBids) {
+      setBidError("Espera a que se sincronice la hora del servidor antes de pujar.");
+      return;
+    }
+
+    if (
+      !Number.isSafeInteger(amount) ||
+      bidLimits === null ||
+      amount < bidLimits.minimum ||
+      amount > bidLimits.maximum
+    ) {
       setBidError(
-        minimumBid === null
-          ? "Esta subasta no tiene un monto mínimo válido para pujar."
-          : `La puja mínima es ${formatAuctionAmount(minimumBid)}.`,
+        !Number.isSafeInteger(amount)
+          ? "Ingresa un monto entero válido en pesos chilenos."
+          : bidLimits === null
+            ? "Esta subasta no tiene un rango válido de pujas. Revisa el precio inicial y el incremento mínimo."
+            : amount < bidLimits.minimum
+              ? `La puja mínima es ${formatAuctionAmount(bidLimits.minimum)}.`
+              : `La puja máxima para este turno es ${formatAuctionAmount(bidLimits.maximum)}.`,
       );
       return;
     }
@@ -178,18 +190,19 @@ export default function AuctionRoom({
         p_bid_amount: amount,
       });
       if (error) throw error;
-      const previousEndMs = product.auction_ends_at
-        ? new Date(product.auction_ends_at).getTime()
-        : Number.NaN;
-      const wasInAntiSnipingWindow = Number.isFinite(previousEndMs)
-        && previousEndMs > Date.now()
-        && previousEndMs - Date.now() <= ANTI_SNIPING_WINDOW_MS;
+      const wasInAntiSnipingWindow = isSynced &&
+        totalSeconds !== null &&
+        totalSeconds <= ANTI_SNIPING_WINDOW_MS / 1_000;
       const { auctionEnd, error: syncError } = await refreshAuctionProduct();
-      const refreshedEndMs = auctionEnd ? new Date(auctionEnd).getTime() : Number.NaN;
+      const previousEndMs = product.auction_ends_at ? Date.parse(product.auction_ends_at) : Number.NaN;
+      const refreshedEndMs = auctionEnd ? Date.parse(auctionEnd) : Number.NaN;
 
       if (syncError) {
         setBidMessage("Puja confirmada. No se pudo sincronizar el temporizador; actualiza la sala.");
-      } else if (wasInAntiSnipingWindow && (!Number.isFinite(refreshedEndMs) || refreshedEndMs <= previousEndMs)) {
+      } else if (
+        wasInAntiSnipingWindow &&
+        (!Number.isFinite(refreshedEndMs) || refreshedEndMs <= previousEndMs)
+      ) {
         setBidError("La puja se confirmó, pero Supabase no extendió el cierre. Revisa el trigger anti-sniping de la base de datos.");
       } else {
         setBidMessage("Puja confirmada y estado de la subasta sincronizado.");
@@ -273,12 +286,14 @@ export default function AuctionRoom({
                   <CardDescription>Subasta en vivo</CardDescription>
                   <CardTitle className="mt-1 text-2xl">{product.name ?? "Subasta"}</CardTitle>
                 </div>
-                <Badge variant={isClosed ? "destructive" : "secondary"}>
+                <Badge variant={isClosed || isAntiSnipingWindow ? "destructive" : "secondary"}>
                   {isClosed
                     ? "Subasta Finalizada"
-                    : canPlaceBids
-                      ? "En vivo"
-                      : "Validando cierre"}
+                    : !isSynced
+                      ? "Sincronizando hora"
+                      : canPlaceBids
+                        ? "En vivo"
+                        : "Cierre no disponible"}
                 </Badge>
               </div>
             </CardHeader>
@@ -289,16 +304,45 @@ export default function AuctionRoom({
                   {formatAuctionAmount(currentAmount)}
                 </p>
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Próxima puja mínima:{" "}
+                  Rango para tu próxima puja:{" "}
                   <span className="font-semibold text-foreground">
-                    {minimumBid === null ? "No disponible" : formatAuctionAmount(minimumBid)}
+                    {bidLimits === null
+                      ? "No disponible"
+                      : `${formatAuctionAmount(bidLimits.minimum)} - ${formatAuctionAmount(bidLimits.maximum)}`}
                   </span>
                 </p>
               </div>
 
               <div className="space-y-2">
                 <p className="text-sm font-medium text-foreground">Tiempo restante</p>
-                <AuctionCountdown endsAt={product.auction_ends_at} />
+                {!isSynced ? (
+                  <div
+                    aria-label="Sincronizando temporizador"
+                    role="status"
+                    className="h-6 w-48 animate-pulse rounded bg-muted"
+                  />
+                ) : totalSeconds === null ? (
+                  <p role="alert" className="text-sm text-destructive">Fecha de cierre no disponible.</p>
+                ) : (
+                  <p
+                    aria-label={`${days} días, ${hours} horas, ${minutes} minutos y ${seconds} segundos`}
+                    className={`font-mono tabular-nums ${
+                      isAntiSnipingWindow || isClosed ? "font-semibold text-destructive" : "text-foreground"
+                    }`}
+                  >
+                    {days}d {padTimer(hours)}h {padTimer(minutes)}m {padTimer(seconds)}s
+                  </p>
+                )}
+                {isAntiSnipingWindow && (
+                  <Badge variant="destructive">
+                    Zona Anti-sniping: las pujas añaden +5 min
+                  </Badge>
+                )}
+                {syncError && (
+                  <p role="alert" className="text-xs text-destructive">
+                    No se pudo sincronizar la hora del servidor; se reintentará automáticamente.
+                  </p>
+                )}
               </div>
 
               {isClosed ? (
@@ -311,13 +355,17 @@ export default function AuctionRoom({
                   </p>
                   {winnerError && <p role="alert" className="mt-1 text-sm text-destructive">{winnerError}</p>}
                 </div>
+              ) : !isSynced ? (
+                <p role="status" className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
+                  Sincronizando la hora del servidor antes de habilitar las pujas.
+                </p>
               ) : !canPlaceBids ? (
                 <p role="alert" className="rounded-xl border border-border bg-muted/40 p-4 text-sm text-muted-foreground">
                   No es posible pujar porque la fecha de cierre no está disponible.
                 </p>
               ) : (
                 <form onSubmit={submitBid} className="space-y-4">
-                  <fieldset disabled={!currentUserId || isSubmitting || minimumBid === null} className="space-y-4">
+                  <fieldset disabled={!currentUserId || isSubmitting || bidLimits === null || !canPlaceBids} className="space-y-4">
                     <div>
                       <label htmlFor="bid-amount" className="mb-2 block text-sm font-medium text-foreground">
                         Tu oferta (CLP)
@@ -327,6 +375,7 @@ export default function AuctionRoom({
                         name="amount"
                         type="number"
                         min={minimumBid ?? undefined}
+                        max={maximumBid ?? undefined}
                         step="1"
                         inputMode="numeric"
                         value={bidAmount}
@@ -336,21 +385,30 @@ export default function AuctionRoom({
                       />
                     </div>
                     <div className="flex flex-wrap gap-2">
-                      {quickIncrements.map((increment) => (
-                        <Button
-                          key={increment}
-                          type="button"
-                          variant="outline"
-                          onClick={() => setBidAmount(String((minimumBid ?? 0) + increment))}
-                        >
-                          +{formatAuctionAmount(increment)}
-                        </Button>
-                      ))}
+                      {quickIncrements.map((increment) => {
+                        const amount = (minimumBid ?? 0) + increment;
+                        return (
+                          <Button
+                            key={increment}
+                            type="button"
+                            variant="outline"
+                            disabled={maximumBid === null || amount > maximumBid}
+                            onClick={() => setBidAmount(String(amount))}
+                          >
+                            +{formatAuctionAmount(increment)}
+                          </Button>
+                        );
+                      })}
                     </div>
                     <Button type="submit" className="h-11 w-full" disabled={isSubmitting}>
                       {isSubmitting ? "Confirmando puja..." : "Confirmar puja"}
                     </Button>
                   </fieldset>
+                  {bidLimits === null && (
+                    <p role="alert" className="text-sm text-destructive">
+                      El incremento mínimo no permite una puja dentro del límite de 50% sobre la oferta vigente.
+                    </p>
+                  )}
                   {!currentUserId && (
                     <p className="text-sm text-muted-foreground">
                       <Link href="/login" className="font-medium text-brand-700 hover:text-brand-800">Inicia sesión</Link> para participar.

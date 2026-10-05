@@ -52,8 +52,8 @@ La consulta de pujas carga el nombre mediante la relación explícita `profiles:
 
 En [la página de venta](../apps/web/app/vender/page.tsx), el vendedor activa **Publicar como subasta** y completa:
 
-- Precio inicial (`starting_price`).
-- Incremento mínimo (`bid_increment`), que debe ser mayor que cero.
+- Precio inicial (`starting_price`), expresado como pesos enteros y mayor que cero.
+- Incremento mínimo (`bid_increment`), positivo y no superior al 50% del precio inicial. Así queda espacio para aceptar la siguiente puja dentro del límite.
 - Duración (5 minutos para pruebas, 24 o 48 horas, 7 o 14 días); de ella se calcula `auction_ends_at`.
 - Stock, condición, descripción, imágenes y disponibilidad de envío.
 
@@ -77,7 +77,11 @@ La ruta [app/subastas/[id]/page.tsx](../apps/web/app/subastas/[id]/page.tsx):
 4. Carga el nombre del ganador, cuando ya existe.
 5. Entrega esos datos a [AuctionRoom.tsx](../apps/web/components/auctions/AuctionRoom.tsx).
 
-La sala muestra la galería, descripción, condición, vendedor, oferta vigente, mínimo siguiente, tiempo restante y pujas recientes. El siguiente monto se calcula como `current_bid + bid_increment`; si aún no hay ofertas, se usa `starting_price`.
+La sala muestra la galería, descripción, condición, vendedor, oferta vigente, rango permitido para la siguiente puja, tiempo restante y pujas recientes. El mínimo se calcula como `current_bid + bid_increment`; si aún no hay ofertas, se usa `starting_price`. El máximo es `floor(monto vigente × 1,5)`; antes de la primera puja, el monto vigente es `starting_price`. Por ejemplo, si el monto vigente es $500.000, una puja de $6.000.000.000 se rechaza y el tope de ese turno es $750.000. Los límites se recalculan al recibir cambios por Realtime. Una puja solo se acepta dentro del rango inclusivo; los botones de puja rápida que superen el máximo se deshabilitan.
+
+El hook [useSynchronizedTimer.ts](../apps/web/hooks/useSynchronizedTimer.ts) sincroniza la hora con la RPC `public.get_server_time()` (milisegundos desde Unix epoch) y calcula el contador con un reloj monotónico local compensado por la diferencia estimada con el servidor. Reintenta la sincronización cada 30 segundos y recalcula el vencimiento al cambiar `auction_ends_at` por Realtime. Mientras no haya una sincronización válida, muestra un skeleton y mantiene deshabilitadas las pujas. Dentro de los últimos 180 segundos muestra la zona anti-sniping; al llegar a cero, cierra el formulario y presenta el ganador actual.
+
+La migración `supabase/migrations/20261005170000_enforce_auction_bid_limits.sql` instala una validación `BEFORE INSERT` en `public.bids`. Esta vuelve a validar la subasta, el incremento mínimo y el máximo del 50% dentro de la transacción, y bloquea la fila del producto mientras lo hace. Para calcular los límites toma la puja más alta ya registrada —equivalente a la puja vigente— y excluye la nueva fila; por ello protege la regla tanto si la RPC actualiza `current_bid` antes como después de insertar en `bids`. Aplicarla en Supabase junto con las migraciones de subastas existentes: la validación de interfaz no sustituye la regla de base de datos.
 
 ### Protección anti-sniping
 
@@ -98,7 +102,7 @@ const { error } = await supabase.rpc("place_bid", {
 });
 ```
 
-El backend valida y registra la puja de forma transaccional. La interfaz valida el monto mínimo, presenta el estado de carga y muestra cualquier error devuelto por la RPC. Tras una puja confirmada, el cliente consulta el estado actual de `products` para sincronizar de inmediato el vencimiento de quien ofertó; el canal Realtime sigue sincronizando a los demás participantes. Si la puja fue durante los últimos tres minutos y Supabase devuelve el mismo vencimiento, la interfaz advierte que la extensión no se reflejó en la base de datos.
+La RPC registra la puja de forma transaccional y el trigger `enforce_auction_bid_limits_before_insert` vuelve a verificar los importes contra el estado vigente bajo bloqueo de fila. La interfaz también impide enviar montos fuera del rango, presenta el estado de carga y muestra errores devueltos por Supabase. Tras una puja confirmada, el cliente consulta el estado actual de `products` para sincronizar de inmediato el vencimiento de quien ofertó; el canal Realtime sigue sincronizando a los demás participantes. Si la puja fue durante los últimos tres minutos y Supabase devuelve el mismo vencimiento, la interfaz advierte que la extensión no se reflejó en la base de datos.
 
 ## Supabase Realtime
 
@@ -123,6 +127,8 @@ El hook registra el estado de suscripción (`SUBSCRIBED`, `CHANNEL_ERROR`, `TIME
 
 - `public.products` y `public.bids` deben estar en la publicación `supabase_realtime`.
 - Debe existir la RPC transaccional `public.place_bid` con parámetros `p_product_id` y `p_bid_amount`.
+- Debe existir `public.get_server_time()` y devolver la hora actual del servidor como milisegundos desde Unix epoch; los clientes de la sala necesitan permiso para ejecutarla.
+- Debe aplicarse la migración `20261005170000_enforce_auction_bid_limits.sql` para validar el rango también en PostgreSQL.
 - Debe existir la clave foránea `fk_bids_profiles` de `bids.bidder_id` a `profiles.id`, además de la relación existente `fk_products_profiles` para el vendedor.
 - Las políticas RLS deben permitir al usuario consultar subastas y pujas que corresponden a la experiencia pública, leer los perfiles necesarios y ejecutar la RPC según las reglas del negocio.
 - En una tabla protegida por RLS, Realtime solo entrega al cliente eventos para los que la sesión cumple las políticas de lectura aplicables.
@@ -144,9 +150,9 @@ El hook registra el estado de suscripción (`SUBSCRIBED`, `CHANNEL_ERROR`, `TIME
 ## Prueba manual
 
 1. Verificar que las columnas de subasta, la RPC, las claves foráneas, la publicación Realtime y las políticas RLS estén configuradas en Supabase.
-2. Iniciar sesión con un usuario vendedor y publicar una subasta con precio inicial, incremento positivo y duración.
-3. Abrir `/subastas`, confirmar que la publicación aparece con monto inicial y contador, y abrir su sala.
-4. En una segunda sesión o navegador, abrir la misma sala y enviar una puja válida desde la primera sesión.
-5. Confirmar que ambas salas muestran la nueva oferta, el nombre (o fallback) del postor y el nuevo monto actual sin recargar.
+2. Iniciar sesión con un usuario vendedor e intentar crear una subasta con un incremento superior al 50% del precio inicial; el formulario debe impedirlo.
+3. Publicar una subasta con precio inicial de $500.000 e incremento de $5.000. Antes de la primera puja, confirmar el rango $500.000-$750.000; una puja de $6.000.000.000 debe rechazarse.
+4. Enviar una puja válida y confirmar que el siguiente mínimo incluye el incremento configurado. Probar una oferta por debajo del mínimo, sobre el máximo y con decimales; todas deben rechazarse.
+5. Abrir la misma sala en una segunda sesión, aceptar una puja válida y confirmar que ambas salas actualizan el rango y el monto mediante Realtime.
 6. Revisar la consola del navegador para `[Realtime status]: SUBSCRIBED` y `[DEBUG Raw Realtime Payload]`. Si el payload está vacío, confirmar que la consulta de respaldo recupera la puja.
 7. Comprobar que la extensión anti-sniping, si está implementada en la RPC, se refleja en `auction_ends_at` y en el contador de la sala.
