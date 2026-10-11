@@ -7,6 +7,7 @@ import type { User } from "@supabase/supabase-js";
 import { ChevronDown } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import CartNavButton from "@/components/cart/CartNavButton";
+import { useFavorites } from "@/hooks/useFavorites";
 import {
   IconHeart,
   IconPlus,
@@ -33,6 +34,7 @@ export default function Navbar() {
   const [menuOpen, setMenuOpen] = useState(false);
   const [signingOut, setSigningOut] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const { favoriteCount } = useFavorites();
 
   useEffect(() => {
     let isCurrent = true;
@@ -188,10 +190,10 @@ export default function Navbar() {
                 </Link>
               )}
 
-              <button type="button" className="icon-btn h-10 w-10" aria-label="Mis favoritos">
+              <Link href="/favorites" className="icon-btn h-10 w-10" aria-label={`Mis favoritos, ${favoriteCount} productos`}>
                 <IconHeart className="h-5 w-5" />
-                <span className="count-badge">3</span>
-              </button>
+                {favoriteCount > 0 && <span className="count-badge">{favoriteCount > 99 ? "99+" : favoriteCount}</span>}
+              </Link>
 
               <CartNavButton />
 

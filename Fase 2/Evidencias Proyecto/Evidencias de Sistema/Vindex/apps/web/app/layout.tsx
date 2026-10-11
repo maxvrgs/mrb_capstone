@@ -7,6 +7,8 @@ import Navbar from "@/components/Navbar";
 import SecondaryNavbar from "@/components/SecondaryNavbar";
 import Footer from "@/components/Footer";
 import CartIntegration from "@/components/cart/CartIntegration";
+import { FavoritesProvider } from "@/hooks/useFavorites";
+import { ToastProvider } from "@/components/ToastProvider";
 
 const outfitHeading = Outfit({subsets:['latin'],variable:'--font-heading'});
 
@@ -37,11 +39,15 @@ export default function RootLayout({
       <body
         className={`${geistSans.variable} ${geistMono.variable} font-sans antialiased`}
       >
-        <Navbar />
-        <SecondaryNavbar />
-        <CartIntegration />
-        {children}
-        <Footer />
+        <ToastProvider>
+          <FavoritesProvider>
+            <Navbar />
+            <SecondaryNavbar />
+            <CartIntegration />
+            {children}
+            <Footer />
+          </FavoritesProvider>
+        </ToastProvider>
       </body>
     </html>
   );

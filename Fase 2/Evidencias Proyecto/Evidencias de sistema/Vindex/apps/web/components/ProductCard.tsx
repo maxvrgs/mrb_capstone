@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { IconHeart } from "@/components/icons";
+import FavoriteButton from "@/components/FavoriteButton";
 
 interface ProductCardProps {
   id: number;
@@ -67,16 +67,7 @@ export default function ProductCard({
           <span className="badge badge-accent absolute left-3 top-3">{discount}</span>
         )}
 
-        <button
-          type="button"
-          aria-label={`Agregar ${name} a favoritos`}
-          onClick={(event) => {
-            event.stopPropagation();
-          }}
-          className="absolute right-3 top-3 flex h-9 w-9 items-center justify-center rounded-full border border-border bg-surface/90 text-foreground backdrop-blur transition hover:border-brand-300 hover:text-brand-700"
-        >
-          <IconHeart className="h-4 w-4" />
-        </button>
+        <FavoriteButton productId={id} productName={name} />
 
         {/* CTA al pasar el cursor */}
         <div className="pointer-events-none absolute inset-x-3 bottom-3 translate-y-2 opacity-0 transition duration-300 group-hover:translate-y-0 group-hover:opacity-100">

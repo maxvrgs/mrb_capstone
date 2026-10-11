@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ProductGallery from "@/components/ProductGallery";
+import FavoriteButton from "@/components/FavoriteButton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -295,6 +296,7 @@ export default function AuctionRoom({
                         ? "En vivo"
                         : "Cierre no disponible"}
                 </Badge>
+                <FavoriteButton productId={product.id} productName={product.name ?? "Subasta"} variant="label" />
               </div>
             </CardHeader>
             <CardContent className="space-y-5">

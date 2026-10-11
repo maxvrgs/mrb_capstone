@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import ProductGallery from "@/components/ProductGallery";
 import ProductPurchaseButton from "@/components/cart/ProductPurchaseButton";
+import FavoriteButton from "@/components/FavoriteButton";
 import { IconArrowRight, IconShieldCheck, IconStar, IconTruck } from "@/components/icons";
 import { formatProductPrice, getActiveDiscountPrice, getProductById, getProductImage, getProductStoreName } from "@/lib/supabase/queries";
 
@@ -68,6 +69,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 <button type="button" className="btn btn-light flex-1 min-w-45">
                   Comprar ahora
                 </button>
+                <FavoriteButton productId={product.id} productName={product.name ?? "Producto"} variant="label" />
               </div>
 
               <div className="rounded-2xl border border-border bg-card p-5">
