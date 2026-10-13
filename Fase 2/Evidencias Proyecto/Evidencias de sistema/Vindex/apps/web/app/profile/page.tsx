@@ -14,7 +14,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/components/ToastProvider";
+import { CHILE_LOCATIONS } from "@/lib/chile-locations";
 
 type SellerProduct = {
   id: number;
@@ -59,6 +62,7 @@ type SellerStore = {
 export default function ProfilePage() {
   const router = useRouter();
   const [supabase] = useState(createClient);
+  const { showToast } = useToast();
   // Estado para alternar entre perfil de Comprador y Vendedor
   const [activeRole, setActiveRole] = useState<"buyer" | "seller">("buyer");
 
@@ -67,8 +71,8 @@ export default function ProfilePage() {
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
   const [profileLoading, setProfileLoading] = useState(true);
-  const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [profileError, setProfileError] = useState<string | null>(null);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [sellerProducts, setSellerProducts] = useState<SellerProduct[]>([]);
   const [sellerProductsLoading, setSellerProductsLoading] = useState(true);
   const [sellerProductsError, setSellerProductsError] = useState<string | null>(null);
@@ -81,10 +85,13 @@ export default function ProfilePage() {
 
   // Estados de dirección
   const [region, setRegion] = useState("");
-  const [ciudad, setCiudad] = useState("");
-  const [comuna, setComuna] = useState("");
-  const [calle, setCalle] = useState("");
-  const [observacion, setObservacion] = useState("");
+  const [city, setCity] = useState("");
+  const [commune, setCommune] = useState("");
+  const [street, setStreet] = useState("");
+  const [streetNumber, setStreetNumber] = useState("");
+  const [references, setReferences] = useState("");
+  const cities = CHILE_LOCATIONS.find((location) => location.region === region)?.cities ?? [];
+  const communes = cities.find((location) => location.name === city)?.communes ?? [];
 
   // Tiendas simuladas (Mock para desarrollo inicial)
   const [stores, setStores] = useState<SellerStore[]>([]);
@@ -111,14 +118,42 @@ export default function ProfilePage() {
       const fullName = typeof metadata.full_name === "string" ? metadata.full_name.trim() : "";
       const nameParts = fullName.split(/\s+/);
 
+      const { data: profile, error: addressError } = await supabase
+        .from("profiles")
+        .select("region, city, commune, street, street_number, references")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (!isCurrent) return;
+
       setEmail(user.email ?? "");
       setFirstName(typeof metadata.first_name === "string" ? metadata.first_name : nameParts[0] ?? "");
       setLastName(typeof metadata.last_name === "string" ? metadata.last_name : nameParts.slice(1).join(" "));
-      setRegion(typeof metadata.region === "string" ? metadata.region : "");
-      setCiudad(typeof metadata.ciudad === "string" ? metadata.ciudad : "");
-      setComuna(typeof metadata.comuna === "string" ? metadata.comuna : "");
-      setCalle(typeof metadata.calle === "string" ? metadata.calle : "");
-      setObservacion(typeof metadata.observacion === "string" ? metadata.observacion : "");
+      if (addressError) {
+        setProfileError(`No se pudo cargar tu dirección: ${addressError.message}`);
+      } else {
+        const profileRegion = typeof profile?.region === "string" ? profile.region : "";
+        const metadataRegion = typeof metadata.region === "string" ? metadata.region : "";
+        const findRegion = (value: string) => CHILE_LOCATIONS.find((location) =>
+          location.region === value
+          || (location.region === "Región Metropolitana" && ["Metropolitana", "Región Metropolitana de Santiago"].includes(value)),
+        );
+        const selectedRegion = findRegion(profileRegion) ?? findRegion(metadataRegion);
+        const profileCity = typeof profile?.city === "string" ? profile.city : "";
+        const metadataCity = typeof metadata.city === "string" ? metadata.city : typeof metadata.ciudad === "string" ? metadata.ciudad : "";
+        const savedCity = selectedRegion?.cities.find((location) => location.name === (profileCity || metadataCity))?.name ?? "";
+        const profileCommune = typeof profile?.commune === "string" ? profile.commune : "";
+        const metadataCommune = typeof metadata.comuna === "string" ? metadata.comuna : "";
+        const savedCommune = selectedRegion?.cities.find((location) => location.name === savedCity)
+          ?.communes.find((value) => value === (profileCommune || metadataCommune)) ?? "";
+
+        setRegion(selectedRegion?.region ?? "");
+        setCity(savedCity);
+        setCommune(savedCommune);
+        setStreet(typeof profile?.street === "string" ? profile.street : typeof metadata.street === "string" ? metadata.street : typeof metadata.calle === "string" ? metadata.calle : "");
+        setStreetNumber(typeof profile?.street_number === "string" ? profile.street_number : "");
+        setReferences(typeof profile?.references === "string" ? profile.references : typeof metadata.references === "string" ? metadata.references : typeof metadata.observacion === "string" ? metadata.observacion : "");
+      }
 
       const { data: products, error: productsError } = await supabase
         .from("products")
@@ -146,28 +181,55 @@ export default function ProfilePage() {
 
   const handleSaveProfile = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    setProfileMessage(null);
-    setProfileError(null);
+    setProfileSaving(true);
 
-    const { error } = await supabase.auth.updateUser({
-      data: {
-        full_name: [firstName, lastName].filter(Boolean).join(" "),
-        first_name: firstName,
-        last_name: lastName,
-        region,
-        ciudad,
-        comuna,
-        calle,
-        observacion,
-      },
-    });
+    try {
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        router.replace("/login");
+        return;
+      }
 
-    if (error) {
-      setProfileError(error.message);
-      return;
+      const { data: updatedProfile, error: profileUpdateError } = await supabase
+        .from("profiles")
+        .update({
+          region,
+          city,
+          commune,
+          street: street.trim(),
+          street_number: streetNumber.trim(),
+          references: references.trim(),
+        })
+        .eq("id", user.id)
+        .select("id")
+        .maybeSingle();
+
+      if (profileUpdateError) throw profileUpdateError;
+      if (!updatedProfile) {
+        throw new Error("No se encontró un perfil para guardar la dirección.");
+      }
+
+      const { error: metadataError } = await supabase.auth.updateUser({
+        data: {
+          full_name: [firstName, lastName].filter(Boolean).join(" "),
+          first_name: firstName,
+          last_name: lastName,
+        },
+      });
+
+      if (metadataError) {
+        showToast(`La dirección se guardó, pero no se pudieron actualizar los datos personales: ${metadataError.message}`, "error");
+        return;
+      }
+
+      setProfileError(null);
+      showToast("Tus datos y dirección se guardaron correctamente.", "success");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Error desconocido";
+      showToast(`No se pudo guardar tu perfil: ${message}`, "error");
+    } finally {
+      setProfileSaving(false);
     }
-
-    setProfileMessage("Tus datos se guardaron correctamente.");
   };
 
   const startEditingProduct = (product: SellerProduct) => {
@@ -327,19 +389,18 @@ export default function ProfilePage() {
   return (
     <div className="container mx-auto max-w-6xl px-4 py-8">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-white">Mi Cuenta</h1>
-        <p className="text-sm text-slate-400">
+        <h1 className="text-3xl font-bold tracking-tight text-foreground">Mi Cuenta</h1>
+        <p className="text-sm text-muted-foreground">
           Administra tus datos personales, direcciones de despacho y tiendas activas.
         </p>
       </div>
 
       {profileLoading ? (
-        <p role="status" className="text-sm text-slate-600">Cargando tu perfil...</p>
+        <p role="status" className="text-sm text-muted-foreground">Cargando tu perfil...</p>
       ) : (
-        <p className="mb-6 text-sm text-slate-700">Sesión iniciada como {email}</p>
+        <p className="mb-6 text-sm text-muted-foreground">Sesión iniciada como {email}</p>
       )}
       {profileError && <p role="alert" className="mb-4 text-sm text-red-700">{profileError}</p>}
-      {profileMessage && <p role="status" className="mb-4 text-sm text-emerald-700">{profileMessage}</p>}
 
       {!profileLoading && <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
         {/* COLUMNA IZQUIERDA: Selector de Rol / Modo */}
@@ -378,10 +439,10 @@ export default function ProfilePage() {
           {activeRole === "buyer" && (
             <form onSubmit={handleSaveProfile} className="space-y-6">
               {/* Información Personal */}
-              <Card className="border-slate-800 bg-slate-50 backdrop-blur">
+              <Card className="border-border bg-surface">
                 <CardHeader>
-                  <CardTitle className="text-lg text-slate-800">Datos Personales</CardTitle>
-                  <CardDescription className="text-slate-600">
+                  <CardTitle className="text-lg text-foreground">Datos Personales</CardTitle>
+                  <CardDescription className="text-muted-foreground">
                     Modifica tu información básica de contacto en la plataforma.
                   </CardDescription>
                 </CardHeader>
@@ -392,7 +453,6 @@ export default function ProfilePage() {
                       id="firstName"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                     />
                   </div>
                   <div className="space-y-2">
@@ -401,17 +461,16 @@ export default function ProfilePage() {
                       id="lastName"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
                     />
                   </div>
                 </CardContent>
               </Card>
 
               {/* Dirección de Envío */}
-              <Card className="border-slate-800 bg-slate-50 backdrop-blur">
+              <Card className="border-border bg-surface">
                 <CardHeader>
-                  <CardTitle className="text-lg text-bg-slate-700">Dirección de Despacho</CardTitle>
-                  <CardDescription className="text-slate-400">
+                  <CardTitle className="text-lg text-foreground">Dirección de Despacho</CardTitle>
+                  <CardDescription className="text-muted-foreground">
                     Utilizada para el cálculo de envíos y entregas.
                   </CardDescription>
                 </CardHeader>
@@ -419,60 +478,95 @@ export default function ProfilePage() {
                   <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
                     <div className="space-y-2">
                       <Label htmlFor="region">Región</Label>
-                      <Input
+                      <Select
                         id="region"
-                        placeholder="Metropolitana"
                         value={region}
-                        onChange={(e) => setRegion(e.target.value)}
-                        className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
+                        onChange={(event) => {
+                          setRegion(event.target.value);
+                          setCity("");
+                          setCommune("");
+                        }}
+                        required
+                      >
+                        <option value="">Selecciona una región</option>
+                        {CHILE_LOCATIONS.map((location) => (
+                          <option key={location.region} value={location.region}>{location.region}</option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="city">Ciudad</Label>
+                      <Select
+                        id="city"
+                        value={city}
+                        onChange={(event) => {
+                          setCity(event.target.value);
+                          setCommune("");
+                        }}
+                        disabled={!region}
+                        required
+                      >
+                        <option value="">Selecciona una ciudad</option>
+                        {cities.map((location) => (
+                          <option key={location.name} value={location.name}>{location.name}</option>
+                        ))}
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="commune">Comuna</Label>
+                      <Select
+                        id="commune"
+                        value={commune}
+                        onChange={(event) => setCommune(event.target.value)}
+                        disabled={!city}
+                        required
+                      >
+                        <option value="">Selecciona una comuna</option>
+                        {communes.map((value) => (
+                          <option key={value} value={value}>{value}</option>
+                        ))}
+                      </Select>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="street">Calle</Label>
+                      <Input
+                        id="street"
+                        autoComplete="address-line1"
+                        placeholder="Av. Providencia"
+                        value={street}
+                        onChange={(event) => setStreet(event.target.value)}
+                        required
                       />
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="ciudad">Ciudad</Label>
+                      <Label htmlFor="street-number">Número</Label>
                       <Input
-                        id="ciudad"
-                        placeholder="Santiago"
-                        value={ciudad}
-                        onChange={(e) => setCiudad(e.target.value)}
-                        className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="comuna">Comuna</Label>
-                      <Input
-                        id="comuna"
-                        placeholder="Providencia"
-                        value={comuna}
-                        onChange={(e) => setComuna(e.target.value)}
-                        className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
+                        id="street-number"
+                        autoComplete="address-line2"
+                        placeholder="1234, depto. 402"
+                        value={streetNumber}
+                        onChange={(event) => setStreetNumber(event.target.value)}
+                        required
                       />
                     </div>
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="calle">Calle, Número y Depto</Label>
-                    <Input
-                      id="calle"
-                      placeholder="Av. Providencia 1234, Depto 402"
-                      value={calle}
-                      onChange={(e) => setCalle(e.target.value)}
-                      className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="observacion">Referencias</Label>
+                    <Label htmlFor="references">Referencias (opcional)</Label>
                     <Textarea
-                      id="observacion"
+                      id="references"
                       placeholder="Dejar en conserjería, timbre no funciona, etc."
-                      value={observacion}
-                      onChange={(e) => setObservacion(e.target.value)}
-                      className="border-slate-800 bg-slate-50 backdrop-blur text-slate-500"
+                      value={references}
+                      onChange={(event) => setReferences(event.target.value)}
+                      rows={3}
                     />
                   </div>
 
-                  <Button type="submit" className="bg-brand-600 hover:bg-brand-800 text-white">
-                    Guardar Cambios
+                  <Button type="submit" className="bg-brand-600 text-white hover:bg-brand-700" disabled={profileSaving}>
+                    {profileSaving ? "Guardando..." : "Guardar Cambios"}
                   </Button>
                 </CardContent>
               </Card>
