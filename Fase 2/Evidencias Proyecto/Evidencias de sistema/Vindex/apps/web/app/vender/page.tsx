@@ -284,6 +284,7 @@ export default function SellProductPage() {
 				return;
 			}
 
+			const requestedStoreId = new URLSearchParams(window.location.search).get("storeId");
 			const { data: storeRows, error: storeError } = await supabase
 				.from("stores")
 				.select("id, name")
@@ -291,7 +292,14 @@ export default function SellProductPage() {
 				.order("name", { ascending: true });
 			if (!isCurrent) return;
 			if (storeError) setStoresError(storeError.message);
-			else setStores((storeRows ?? []) as OwnedStore[]);
+			else {
+				setStores((storeRows ?? []) as OwnedStore[]);
+				if (requestedStoreId) {
+					const requestedStore = storeRows?.find((store) => String(store.id) === requestedStoreId);
+					if (requestedStore) setStoreId(String(requestedStore.id));
+					else setStoresError("La tienda indicada no existe o no te pertenece.");
+				}
+			}
 			setStoresLoading(false);
 			setAuthorized(true);
 		};
