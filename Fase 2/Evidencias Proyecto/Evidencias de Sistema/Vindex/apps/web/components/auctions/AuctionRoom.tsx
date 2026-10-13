@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import ProductGallery from "@/components/ProductGallery";
 import FavoriteButton from "@/components/FavoriteButton";
+import ProductReviews from "@/components/reviews/ProductReviews";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -277,6 +278,14 @@ export default function AuctionRoom({
               <p><span className="font-medium text-foreground">Vendedor:</span> <span className="text-muted-foreground">{seller?.full_name ?? "Vendedor Vindex"}</span></p>
             </CardContent>
           </Card>
+          <ProductReviews
+            productId={product.id}
+            sellerId={product.seller_id}
+            storeId={product.store_id}
+            isAuction
+            winnerId={product.winner_id}
+            auctionClosed={isClosed}
+          />
         </div>
 
         <div className="space-y-6">

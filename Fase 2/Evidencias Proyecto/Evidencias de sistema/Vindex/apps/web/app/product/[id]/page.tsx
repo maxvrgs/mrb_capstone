@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import ProductGallery from "@/components/ProductGallery";
 import ProductPurchaseButton from "@/components/cart/ProductPurchaseButton";
 import FavoriteButton from "@/components/FavoriteButton";
+import ProductReviews from "@/components/reviews/ProductReviews";
 import { IconArrowRight, IconShieldCheck, IconStar, IconTruck } from "@/components/icons";
 import { formatProductPrice, getActiveDiscountPrice, getProductById, getProductImage, getProductStoreName } from "@/lib/supabase/queries";
 
@@ -114,6 +115,11 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
                 Vendedor: <span className="font-medium text-foreground">{product.seller?.full_name || "Vendedor Vindex"}</span>
                 {storeName && <> · Tienda: <span className="font-medium text-foreground">{storeName}</span></>}
               </p>
+              <ProductReviews
+                productId={product.id}
+                sellerId={product.seller_id}
+                storeId={product.store_id}
+              />
             </div>
           </div>
         </div>

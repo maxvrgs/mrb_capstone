@@ -18,6 +18,7 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ToastProvider";
 import { CHILE_LOCATIONS } from "@/lib/chile-locations";
+import SellerStores from "@/components/profile/SellerStores";
 
 type SellerProduct = {
   id: number;
@@ -44,19 +45,6 @@ type ProductDraft = {
   discountPrice: string;
   offerDurationHours: string;
   renewOffer: boolean;
-};
-
-type SellerStore = {
-  id: string;
-  name: string;
-  image: string;
-  description: string;
-  stats: {
-    sales: number;
-    earnings: number;
-    inStock: number;
-    visits: number;
-  };
 };
 
 export default function ProfilePage() {
@@ -92,14 +80,6 @@ export default function ProfilePage() {
   const [references, setReferences] = useState("");
   const cities = CHILE_LOCATIONS.find((location) => location.region === region)?.cities ?? [];
   const communes = cities.find((location) => location.name === city)?.communes ?? [];
-
-  // Tiendas simuladas (Mock para desarrollo inicial)
-  const [stores, setStores] = useState<SellerStore[]>([]);
-
-  // Formulario simple para crear tienda
-  const [showCreateStore, setShowCreateStore] = useState(false);
-  const [newStoreName, setNewStoreName] = useState("");
-  const [newStoreDesc, setNewStoreDesc] = useState("");
 
   useEffect(() => {
     let isCurrent = true;
@@ -366,24 +346,6 @@ export default function ProfilePage() {
     } finally {
       setDeletingProductId(null);
     }
-  };
-
-  const handleCreateStore = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newStoreName) return;
-
-    const newStore = {
-      id: Date.now().toString(),
-      name: newStoreName,
-      image: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?w=300&q=80",
-      description: newStoreDesc || "Sin descripción",
-      stats: { sales: 0, earnings: 0, inStock: 0, visits: 1 },
-    };
-
-    setStores([...stores, newStore]);
-    setNewStoreName("");
-    setNewStoreDesc("");
-    setShowCreateStore(false);
   };
 
   return (
@@ -715,128 +677,7 @@ export default function ProfilePage() {
                 </CardContent>
               </Card>
 
-              {stores.length === 0 ? (
-                <Card className="border-slate-200 bg-surface p-8 text-center">
-                  <h3 className="text-lg font-semibold text-white">Aún no tienes tiendas creadas</h3>
-                  <p className="mt-1 text-sm text-slate-800">
-                    Comienza a vender o crear subastas creando tu primer espacio comercial.
-                  </p>
-                  <Button
-                    onClick={() => setShowCreateStore(true)}
-                    className="mt-4 bg-brand-600 hover:bg-brand-500 text-white"
-                  >
-                    Crear Primera Tienda
-                  </Button>
-                </Card>
-              ) : (
-                <>
-                  {stores.map((store) => (
-                    <Card key={store.id} className="border-slate-800 bg-slate-50 backdrop-blur">
-                      <CardHeader className="flex flex-row items-start gap-4">
-                        <img
-                          src={store.image}
-                          alt={store.name}
-                          className="h-16 w-16 rounded-lg object-cover border border-slate-800"
-                        />
-                        <div className="flex-1">
-                          <CardTitle className="text-xl text-slate-700">{store.name}</CardTitle>
-                          <CardDescription className="text-slate-600 mt-1">
-                            {store.description}
-                          </CardDescription>
-                        </div>
-                      </CardHeader>
-
-                      <CardContent className="space-y-6">
-                        {/* Mini Dashboard de Métricas */}
-                        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-                          <div className="rounded-lg bg-slate-200 p-3 border border-slate-800/80">
-                            <span className="text-xs text-slate-600">Ventas</span>
-                            <p className="text-xl font-bold text-slate-700">{store.stats.sales}</p>
-                          </div>
-                          <div className="rounded-lg bg-slate-200 p-3 border border-slate-800/80">
-                            <span className="text-xs text-slate-600">Ganancias</span>
-                            <p className="text-xl font-bold text-emerald-400">
-                              ${store.stats.earnings.toLocaleString("es-CL")}
-                            </p>
-                          </div>
-                          <div className="rounded-lg bg-slate-200 p-3 border border-slate-800/80">
-                            <span className="text-xs text-slate-600">En Stock</span>
-                            <p className="text-xl font-bold text-slate-700">{store.stats.inStock}</p>
-                          </div>
-                          <div className="rounded-lg bg-slate-200 p-3 border border-slate-800/80">
-                            <span className="text-xs text-slate-600">Visitas</span>
-                            <p className="text-xl font-bold text-slate-700">{store.stats.visits}</p>
-                          </div>
-                        </div>
-
-                      </CardContent>
-                    </Card>
-                  ))}
-
-                  {/* Botón para crear más tiendas al final de la lista */}
-                  <div className="pt-2">
-                    {!showCreateStore && (
-                      <Button
-                        onClick={() => setShowCreateStore(true)}
-                        variant="outline"
-                        className="w-full border-slate-800 text-slate-700 hover:bg-slate-300"
-                      >
-                        + Crear otra Tienda
-                      </Button>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* Formulario Desplegable para Crear Tienda */}
-              {showCreateStore && (
-                <Card className="border-emerald-600/50 bg-slate-50">
-                  <CardHeader>
-                    <CardTitle className="text-base text-slate-700">Nueva Tienda</CardTitle>
-                    <CardDescription className="text-slate-400">
-                      Configura el nombre y la reseña de tu nuevo espacio comercial.
-                    </CardDescription>
-                  </CardHeader>
-                  <form onSubmit={handleCreateStore}>
-                    <CardContent className="space-y-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="storeName">Nombre de la Tienda</Label>
-                        <Input
-                          id="storeName"
-                          placeholder="Ej: Joyería Artesanal Sol"
-                          value={newStoreName}
-                          onChange={(e) => setNewStoreName(e.target.value)}
-                          className="border-slate-800 bg-slate-50 text-slate-500"
-                          required
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="storeDesc">Descripción</Label>
-                        <Textarea
-                          id="storeDesc"
-                          placeholder="Describe lo que vendes o los remates que harás..."
-                          value={newStoreDesc}
-                          onChange={(e) => setNewStoreDesc(e.target.value)}
-                          className="border-slate-800 bg-slate-50 text-slate-500"
-                        />
-                      </div>
-                      <div className="flex gap-2 justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          onClick={() => setShowCreateStore(false)}
-                          className="text-slate-600 border-slate-500"
-                        >
-                          Cancelar
-                        </Button>
-                        <Button type="submit" className="bg-brand-600 hover:bg-brand-800 text-white">
-                          Guardar Tienda
-                        </Button>
-                      </div>
-                    </CardContent>
-                  </form>
-                </Card>
-              )}
+              <SellerStores />
             </div>
           )}
         </div>

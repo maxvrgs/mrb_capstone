@@ -25,6 +25,8 @@ type SelectedImage = {
 };
 
 type ProductCategory = { id: number; name: string };
+type OwnedStore = { id: number; name: string };
+type StoreCategory = { id: number; name: string };
 
 const numberInputClassName = "[appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none";
 
@@ -214,6 +216,13 @@ export default function SellProductPage() {
 	const [categoriesLoading, setCategoriesLoading] = useState(true);
 	const [categoriesError, setCategoriesError] = useState<string | null>(null);
 	const [storeId, setStoreId] = useState("");
+	const [storeCategoryId, setStoreCategoryId] = useState("");
+	const [stores, setStores] = useState<OwnedStore[]>([]);
+	const [storesLoading, setStoresLoading] = useState(true);
+	const [storesError, setStoresError] = useState<string | null>(null);
+	const [storeCategories, setStoreCategories] = useState<StoreCategory[]>([]);
+	const [storeCategoriesLoading, setStoreCategoriesLoading] = useState(false);
+	const [storeCategoriesError, setStoreCategoriesError] = useState<string | null>(null);
 	const [selectedImages, setSelectedImages] = useState<SelectedImage[]>([]);
 	const [isDraggingImages, setIsDraggingImages] = useState(false);
 	const imageInputRef = useRef<HTMLInputElement>(null);
@@ -275,6 +284,15 @@ export default function SellProductPage() {
 				return;
 			}
 
+			const { data: storeRows, error: storeError } = await supabase
+				.from("stores")
+				.select("id, name")
+				.eq("owner_id", user.id)
+				.order("name", { ascending: true });
+			if (!isCurrent) return;
+			if (storeError) setStoresError(storeError.message);
+			else setStores((storeRows ?? []) as OwnedStore[]);
+			setStoresLoading(false);
 			setAuthorized(true);
 		};
 
@@ -284,6 +302,37 @@ export default function SellProductPage() {
 			isCurrent = false;
 		};
 	}, [router, supabase]);
+
+	useEffect(() => {
+		let isCurrent = true;
+		setStoreCategoryId("");
+		setStoreCategories([]);
+		setStoreCategoriesError(null);
+
+		if (!storeId) {
+			setStoreCategoriesLoading(false);
+			return () => {
+				isCurrent = false;
+			};
+		}
+
+		setStoreCategoriesLoading(true);
+		const loadStoreCategories = async () => {
+			const { data, error } = await supabase
+				.from("store_categories")
+				.select("id, name")
+				.eq("store_id", Number(storeId))
+				.order("name", { ascending: true });
+			if (!isCurrent) return;
+			if (error) setStoreCategoriesError(error.message);
+			else setStoreCategories((data ?? []) as StoreCategory[]);
+			setStoreCategoriesLoading(false);
+		};
+		void loadStoreCategories();
+		return () => {
+			isCurrent = false;
+		};
+	}, [storeId, supabase]);
 
 	useEffect(() => {
 		if (!authorized) return;
@@ -383,6 +432,7 @@ export default function SellProductPage() {
 			const { data: product, error: productError } = await supabase.from("products").insert({
 				seller_id: user.id,
 				store_id: storeId ? Number(storeId) : null,
+				store_category_id: storeId && storeCategoryId ? Number(storeCategoryId) : null,
 				category_id: categoryId ? Number(categoryId) : null,
 				name: name.trim(),
 				slug: productSlug,
@@ -448,6 +498,7 @@ export default function SellProductPage() {
 			setCondition("Nuevo");
 			setCategoryId("");
 			setStoreId("");
+			setStoreCategoryId("");
 			selectedImages.forEach(({ previewUrl }) => {
 				URL.revokeObjectURL(previewUrl);
 				imagePreviewUrls.current.delete(previewUrl);
@@ -659,11 +710,23 @@ export default function SellProductPage() {
 										{categoriesError && <p role="alert" className="text-xs text-red-700">{categoriesError}</p>}
 									</div>
 									<div className="space-y-2">
-										<Label htmlFor="storeId">Tienda</Label>
+										<Label htmlFor="storeId">¿Publicar en una de mis tiendas? (opcional)</Label>
 										<select id="storeId" value={storeId} onChange={(event) => setStoreId(event.target.value)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm">
-											<option value="">Tiendas disponibles próximamente</option>
+											<option value="">{storesLoading ? "Cargando tus tiendas..." : "Sin tienda"}</option>
+											{stores.map((store) => <option key={store.id} value={store.id}>{store.name}</option>)}
 										</select>
+										{storesError && <p role="alert" className="text-xs text-red-700">No se pudieron cargar tus tiendas: {storesError}</p>}
 									</div>
+									{storeId && (
+										<div className="space-y-2">
+											<Label htmlFor="storeCategoryId">Categoría de la tienda (opcional)</Label>
+											<select id="storeCategoryId" value={storeCategoryId} onChange={(event) => setStoreCategoryId(event.target.value)} disabled={storeCategoriesLoading || Boolean(storeCategoriesError)} className="h-9 w-full rounded-md border border-input bg-background px-3 text-sm text-foreground shadow-sm disabled:opacity-50">
+												<option value="">{storeCategoriesLoading ? "Cargando categorías..." : storeCategories.length > 0 ? "Sin categoría propia" : "No hay categorías propias"}</option>
+												{storeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+											</select>
+											{storeCategoriesError && <p role="alert" className="text-xs text-red-700">No se pudieron cargar las categorías: {storeCategoriesError}</p>}
+										</div>
+									)}
 								</div>
 
 								<div className="space-y-2">

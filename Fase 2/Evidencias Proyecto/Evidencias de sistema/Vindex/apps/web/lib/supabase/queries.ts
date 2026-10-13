@@ -5,6 +5,15 @@ import { formatAuctionBid, type AuctionBid, type AuctionProduct, type ProductLis
 export type { ProductListing } from "../product-utils";
 export { getActiveDiscountPrice, getDiscountLabel, getProductImage } from "../product-utils";
 
+export type StoreListing = {
+	id: number;
+	name: string;
+	slug: string;
+	logo_url: string | null;
+	average_rating: number | null;
+	total_reviews: number;
+};
+
 async function createSupabaseServerClient() {
 	const cookieStore = await cookies();
 
@@ -129,6 +138,40 @@ export async function getProductStoreName(product: ProductListing): Promise<stri
 		.maybeSingle();
 
 	return typeof data?.name === "string" ? data.name : null;
+}
+
+export async function getPopularStores(): Promise<StoreListing[]> {
+	const supabase = await createSupabaseServerClient();
+	const { data: stores, error: storesError } = await supabase
+		.from("stores")
+		.select("id, name, slug, logo_url")
+		.order("created_at", { ascending: false })
+		.limit(4);
+
+	if (storesError) {
+		logQueryError("las tiendas", storesError.message);
+		return [];
+	}
+	if (!stores?.length) return [];
+
+	const { data: ratings, error: ratingsError } = await supabase
+		.from("store_ratings")
+		.select("store_id, average_rating, total_reviews")
+		.in("store_id", stores.map((store) => store.id));
+
+	if (ratingsError) {
+		logQueryError("las calificaciones de tiendas", ratingsError.message);
+		return stores.map((store) => ({ ...store, average_rating: null, total_reviews: 0 })) as StoreListing[];
+	}
+
+	return stores.map((store) => {
+		const rating = ratings?.find((entry) => entry.store_id === store.id);
+		return {
+			...store,
+			average_rating: rating?.average_rating ?? null,
+			total_reviews: Number(rating?.total_reviews ?? 0),
+		};
+	}) as StoreListing[];
 }
 
 export async function getProductBySlug(slug: string): Promise<ProductListing | null> {
