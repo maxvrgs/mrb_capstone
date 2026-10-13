@@ -4,7 +4,6 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import { Card, CardContent } from "@/components/ui/card";
-import ProductCard from "@/components/ProductCard";
 import RatingStars from "@/components/RatingStars";
 import { createClient } from "@/lib/supabase/client";
 import { formatProductPrice } from "@/lib/formatters";
@@ -109,25 +108,44 @@ export default function PublicStorePage() {
         {filteredProducts.length === 0 ? (
           <Card><CardContent className="py-10 text-center text-sm text-muted-foreground">No hay publicaciones en esta categoría.</CardContent></Card>
         ) : (
-          <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+          <ul className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
             {filteredProducts.map((product) => {
               const currentPrice = getActiveDiscountPrice(product)
                 ?? (product.sale_type === "auction" ? product.current_bid ?? product.starting_price : product.price)
                 ?? null;
+              const isAuction = product.sale_type === "auction";
               return (
-                <ProductCard
-                  key={product.id}
-                  id={product.id}
-                  name={product.name ?? "Producto sin nombre"}
-                  price={formatProductPrice(currentPrice)}
-                  image={getProductImage(product)}
-                  discount={getDiscountLabel(product)}
-                  saleType={product.sale_type}
-                  currentBid={product.current_bid ?? null}
-                />
+                <li key={product.id}>
+                  <Link
+                    href={isAuction ? `/subastas/${product.id}` : `/product/${product.id}`}
+                    className="group flex items-center gap-3 p-3 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-500 sm:gap-4 sm:p-4"
+                  >
+                    <img
+                      src={getProductImage(product)}
+                      alt=""
+                      loading="lazy"
+                      className="size-16 shrink-0 rounded-lg border border-border bg-muted object-cover sm:size-20"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <h3 className="truncate font-semibold text-foreground group-hover:text-brand-700">
+                        {product.name ?? "Producto sin nombre"}
+                      </h3>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {isAuction ? "Subasta" : "Producto"}
+                        {isAuction && product.current_bid !== null && product.current_bid !== undefined
+                          ? " · Puja actual"
+                          : ""}
+                      </p>
+                    </div>
+                    <div className="shrink-0 text-right">
+                      {getDiscountLabel(product) && <p className="text-xs font-semibold text-accent-600">{getDiscountLabel(product)}</p>}
+                      <p className="text-sm font-bold text-foreground sm:text-base">{formatProductPrice(currentPrice)}</p>
+                    </div>
+                  </Link>
+                </li>
               );
             })}
-          </div>
+          </ul>
         )}
       </section>
     </main>

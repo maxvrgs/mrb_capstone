@@ -13,7 +13,7 @@ import { createClient } from "@/lib/supabase/client";
 
 type Store = { id: number; name: string; slug: string };
 type StoreCategory = { id: number; name: string };
-type StoreProduct = { id: number; name: string | null; sale_type: string | null; status: boolean | null; created_at: string };
+type StoreProduct = { id: number; name: string | null; images: string[] | null; sale_type: string | null; status: boolean | null; created_at: string };
 
 export default function StoreAdminPage() {
   const params = useParams<{ id: string }>();
@@ -67,7 +67,7 @@ export default function StoreAdminPage() {
 
         const [{ data: categoryRows, error: categoryError }, { data: productRows, error: productError }] = await Promise.all([
           supabase.from("store_categories").select("id, name").eq("store_id", storeId).order("name", { ascending: true }),
-          supabase.from("products").select("id, name, sale_type, status, created_at").eq("store_id", storeId).order("created_at", { ascending: false }),
+          supabase.from("products").select("id, name, images, sale_type, status, created_at").eq("store_id", storeId).order("created_at", { ascending: false }),
         ]);
         if (categoryError) throw categoryError;
         if (productError) throw productError;
@@ -162,7 +162,7 @@ export default function StoreAdminPage() {
       }
       const { data, error } = await supabase
         .from("products")
-        .select("id, name, sale_type, status, created_at")
+        .select("id, name, images, sale_type, status, created_at")
         .eq("seller_id", user.id)
         .is("store_id", null)
         .eq("status", true)
@@ -194,7 +194,7 @@ export default function StoreAdminPage() {
         .eq("seller_id", user.id)
         .is("store_id", null)
         .in("id", selectedProductIds)
-        .select("id, name, sale_type, status, created_at");
+        .select("id, name, images, sale_type, status, created_at");
       if (error) throw error;
       if (!data?.length) throw new Error("No se pudieron añadir los productos seleccionados.");
 
@@ -248,12 +248,20 @@ export default function StoreAdminPage() {
           {products.length === 0 ? <p className="text-sm text-muted-foreground">No hay publicaciones asignadas a esta tienda.</p> : (
             <ul className="divide-y divide-border">
               {products.map((product) => (
-                <li key={product.id} className="flex flex-wrap items-center justify-between gap-3 py-3">
-                  <div>
-                    <p className="font-medium text-foreground">{product.name ?? "Publicación sin nombre"}</p>
-                    <p className="text-xs text-muted-foreground">{product.sale_type === "auction" ? "Subasta" : "Producto"} · {product.status ? "Activo" : "Inactivo"}</p>
+                <li key={product.id} className="flex items-center justify-between gap-3 py-3">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <img
+                      src={product.images?.[0] ?? `https://picsum.photos/seed/vindex-product-${product.id}/120/120`}
+                      alt=""
+                      loading="lazy"
+                      className="size-14 shrink-0 rounded-lg border border-border bg-muted object-cover sm:size-16"
+                    />
+                    <div className="min-w-0">
+                      <p className="truncate font-medium text-foreground">{product.name ?? "Publicación sin nombre"}</p>
+                      <p className="text-xs text-muted-foreground">{product.sale_type === "auction" ? "Subasta" : "Producto"} · {product.status ? "Activo" : "Inactivo"}</p>
+                    </div>
                   </div>
-                  <Link className="text-sm font-medium text-brand-700 hover:text-brand-800" href={product.sale_type === "auction" ? `/subastas/${product.id}` : `/product/${product.id}`}>Ver publicación</Link>
+                  <Link className="shrink-0 text-sm font-medium text-brand-700 hover:text-brand-800" href={product.sale_type === "auction" ? `/subastas/${product.id}` : `/product/${product.id}`}>Ver publicación</Link>
                 </li>
               ))}
             </ul>
@@ -321,6 +329,12 @@ export default function StoreAdminPage() {
                               checked={selectedProductIds.includes(product.id)}
                               onChange={(event) => setSelectedProductIds((current) => event.target.checked ? [...current, product.id] : current.filter((id) => id !== product.id))}
                               className="size-4 accent-brand-600"
+                            />
+                            <img
+                              src={product.images?.[0] ?? `https://picsum.photos/seed/vindex-product-${product.id}/120/120`}
+                              alt=""
+                              loading="lazy"
+                              className="size-12 shrink-0 rounded-md border border-border bg-muted object-cover"
                             />
                             <span className="min-w-0 flex-1 truncate">{product.name ?? "Publicación sin nombre"}</span>
                             <span className="text-xs text-muted-foreground">{product.sale_type === "auction" ? "Subasta" : "Producto"}</span>

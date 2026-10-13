@@ -279,8 +279,8 @@ export default function SellerStores() {
                 </CardHeader>
                 <CardContent className="flex flex-wrap gap-2">
                   <Button type="button" variant="outline" onClick={() => openEditForm(store)}>Editar</Button>
-                  <Button type="button" render={<Link href={`/profile/stores/${store.id}`} />}>Administrar</Button>
-                  <Button type="button" variant="ghost" render={<Link href={`/tiendas/${encodeURIComponent(store.slug)}`} />}>Ver tienda</Button>
+                  <Button type="button" nativeButton={false} render={<Link href={`/profile/stores/${store.id}`} />}>Administrar</Button>
+                  <Button type="button" variant="ghost" nativeButton={false} render={<Link href={`/tiendas/${encodeURIComponent(store.slug)}`} />}>Ver tienda</Button>
                 </CardContent>
               </Card>
             ))}
