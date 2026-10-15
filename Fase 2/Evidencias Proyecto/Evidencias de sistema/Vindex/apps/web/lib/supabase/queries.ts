@@ -115,7 +115,13 @@ export async function getProductById(productId: number): Promise<ProductListing 
 	const supabase = await createSupabaseServerClient();
 	const { data, error } = await supabase
 		.from("products")
-		.select("*")
+		.select(`
+			*,
+			seller:profiles!fk_products_profiles (
+				id,
+				full_name
+			)
+		`)
 		.eq("id", productId)
 		.single();
 

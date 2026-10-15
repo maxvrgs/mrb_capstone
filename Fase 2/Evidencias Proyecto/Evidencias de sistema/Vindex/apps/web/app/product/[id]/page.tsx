@@ -68,9 +68,7 @@ export default async function ProductDetailPage({ params }: { params: Promise<{ 
 
               <div className="flex flex-wrap gap-3">
                 <ProductPurchaseButton product={product} currentPrice={activePrice} />
-                <button type="button" className="btn btn-light flex-1 min-w-45">
-                  Comprar ahora
-                </button>
+                <ProductPurchaseButton product={product} currentPrice={activePrice} action="buy" />
                 <MessageSellerButton
                   productId={product.id}
                   sellerId={product.seller_id}

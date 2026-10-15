@@ -92,6 +92,18 @@ Todas estas operaciones se implementan centralmente en [`useCartStore.ts`](../ap
 
 Estos cálculos son de presentación del carrito. Antes de una futura compra, el backend debe volver a validar precio, disponibilidad, stock y totales; los valores enviados por un navegador no deben considerarse una fuente de verdad para cobrar.
 
+## Checkout y compras
+
+La ruta `/checkout` requiere una sesión autenticada y muestra los artículos hidratados del carrito. El comprador puede elegir la dirección completa guardada en `profiles` o proporcionar otra para el pedido. El envío estándar cuesta CLP 3.990 y el retiro en tienda CLP 0; estos importes y la elección entre Webpay Plus y Mercado Pago son simulaciones, no integraciones con proveedores.
+
+Al confirmar, el cliente invoca `process_mock_checkout` con la dirección y el método de pago permitido (`webpay` o `mercadopago`). La RPC calcula y crea la orden y sus ítems a partir del carrito remoto, y vacía ese carrito dentro de la operación. En caso de éxito, el navegador también vacía su store local y abre `/checkout/success?order_id=...`. El detalle y el historial se consultan bajo las políticas RLS de `orders` y `order_items`.
+
+La RPC debe localizar el carrito mediante `cart_items.cart_id → carts.id → carts.user_id`; `cart_items` no tiene una columna `user_id`. La migración de corrección [`20261015195500_fix_mock_checkout_cart_lookup.sql`](../supabase/migrations/20261015195500_fix_mock_checkout_cart_lookup.sql) actualiza la función ya desplegada.
+
+El perfil comprador muestra **Mis Compras**. Las compras con estado `completed` o `delivered` permiten calificar el producto; las reseñas se guardan en `reviews` y se evita ofrecer otra calificación si ese comprador ya reseñó ese producto. La configuración de tablas, RPC, permisos y políticas debe estar desplegada en Supabase; la definición versionada está en [`supabase/migrations/checkout.sql`](../supabase/migrations/checkout.sql).
+
+Para el retiro presencial, el checkout guarda `Acordar con el vendedor` en `orders.shipping_address` y muestra un aviso para encontrar el código en el perfil. La RPC genera el OTP de seis dígitos y marca la orden `pending_pickup`. **Mis Compras** obtiene el código a través de `get_buyer_delivery_code`, que autoriza solo al comprador de esa orden; las columnas de la tabla no exponen el secreto directamente a vendedores. El perfil oculta el código tras completar la entrega. El vendedor ve las órdenes de sus productos, ingresa el OTP dictado al recibir el artículo y confirma mediante `verify_delivery_otp`; al validar, el estado pasa a `completed` y el comprador queda habilitado para calificar el producto. Para una base existente, aplicar también [`20261015194100_secure_delivery_code_access.sql`](../supabase/migrations/20261015194100_secure_delivery_code_access.sql).
+
 ## Alta desde el catálogo y la ficha
 
 ### Catálogo `/tienda`
@@ -202,7 +214,7 @@ La persistencia en `localStorage` no depende de esas tablas: mantiene el carrito
 - El carrito admite solo compras directas; las subastas no se agregan desde catálogo o ficha.
 - El stock se limita en el cliente con el valor conocido al agregar/refrescar. No reserva inventario y puede quedar obsoleto; el checkout/back-end debe comprobarlo de nuevo.
 - Los cambios locales se conservan aunque falle una operación remota, pero el error se registra en consola y la réplica remota puede quedar desactualizada hasta otra sincronización.
-- El botón lleva a `/checkout`, pero en el árbol actual de `apps/web/app` no hay una ruta `checkout`; el procesamiento de pago no forma parte de este carrito.
+- El botón continúa a `/checkout`, donde se confirma dirección, envío y pago simulado. La orden se crea mediante la RPC transaccional de Supabase y su detalle se muestra en `/checkout/success`.
 - Las cantidades y los precios de Zustand son datos de UI. Para crear una orden, el backend debe reconstruir precios, vendedor, stock y total desde datos confiables.
 
 ## Guía rápida de diagnóstico

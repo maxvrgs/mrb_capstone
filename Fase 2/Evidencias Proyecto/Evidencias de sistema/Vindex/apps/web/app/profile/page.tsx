@@ -19,6 +19,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/components/ToastProvider";
 import { CHILE_LOCATIONS } from "@/lib/chile-locations";
 import SellerStores from "@/components/profile/SellerStores";
+import BuyerPurchases from "@/components/profile/BuyerPurchases";
+import SellerPickupOrders from "@/components/profile/SellerPickupOrders";
 
 type SellerProduct = {
   id: number;
@@ -399,6 +401,7 @@ export default function ProfilePage() {
         <div className="space-y-6 md:col-span-3">
           {/* MODO COMPRADOR: Datos de Usuario y Dirección */}
           {activeRole === "buyer" && (
+            <>
             <form onSubmit={handleSaveProfile} className="space-y-6">
               {/* Información Personal */}
               <Card className="border-border bg-surface">
@@ -533,11 +536,14 @@ export default function ProfilePage() {
                 </CardContent>
               </Card>
             </form>
+            <BuyerPurchases />
+            </>
           )}
 
           {/* ´Perfil Vendedor */}
           {activeRole === "seller" && (
             <div className="space-y-6">
+              <SellerPickupOrders />
               <Card className="border-slate-200 bg-surface">
                 <CardHeader>
                   <CardTitle className="text-lg text-foreground">Mis productos publicados</CardTitle>
