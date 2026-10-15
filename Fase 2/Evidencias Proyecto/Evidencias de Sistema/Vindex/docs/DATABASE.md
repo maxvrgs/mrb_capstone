@@ -83,6 +83,8 @@ La migración `supabase/migrations/20260929140000_fix_anti_sniping_status_type.s
 
 `public.products` y `public.bids` deben estar incluidas en la publicación `supabase_realtime`. Solo la sala individual `/subastas/[id]` abre un canal, con eventos filtrados por el ID de su producto (`bids` INSERT por `product_id`, `products` UPDATE por `id`) y retira la suscripción al desmontarse. El catálogo `/subastas`, el Home y `/tienda` utilizan consultas estándar; no abren canales de Realtime.
 
+La tabla `public.messages` también debe estar incluida en `supabase_realtime` para que los mensajes nuevos se entreguen a las salas abiertas sin recargar. La migración `supabase/migrations/20261015160000_enable_messages_realtime.sql` agrega la tabla de forma idempotente; aplícala al proyecto Supabase junto con `REPLICA IDENTITY FULL` y las políticas RLS descritas en [schema.md](../apps/web/lib/supabase/schema.md).
+
 ## Carrito de compras
 
 El contrato requerido por la sincronización de la aplicación usa `public.carts` y `public.cart_items`. Cada carrito pertenece a un usuario autenticado; `cart_items.cart_id` es UUID y `cart_items.product_id` es BIGINT, con una fila única por producto y carrito. Las políticas RLS deben limitar lectura y mutaciones al propietario.
