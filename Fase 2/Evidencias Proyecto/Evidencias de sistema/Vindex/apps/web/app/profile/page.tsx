@@ -408,12 +408,12 @@ export default function ProfilePage() {
           {/* MODO COMPRADOR: Datos de Usuario y Dirección */}
           {activeRole === "buyer" && (
             <Tabs defaultValue="account" className="space-y-5">
-              <TabsList aria-label="Secciones del perfil comprador" className="grid h-auto w-full grid-cols-2 rounded-xl border border-border bg-surface p-1">
-                <TabsTrigger value="account" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+              <TabsList aria-label="Secciones del perfil comprador" className="grid !h-14 w-full grid-cols-2 items-stretch rounded-xl border border-border bg-surface p-1 pb-3">
+                <TabsTrigger value="account" className="h-auto min-h-10 gap-2 rounded-lg after:hidden data-active:bg-brand-50 data-active:text-brand-700">
                   <UserRound className="h-4 w-4" />
                   Datos y despacho
                 </TabsTrigger>
-                <TabsTrigger value="purchases" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+                <TabsTrigger value="purchases" className="h-auto min-h-10 gap-2 rounded-lg after:hidden data-active:bg-brand-50 data-active:text-brand-700">
                   <ShoppingBag className="h-4 w-4" />
                   Mis compras
                 </TabsTrigger>
@@ -563,16 +563,16 @@ export default function ProfilePage() {
           {/* Perfil vendedor */}
           {activeRole === "seller" && (
             <Tabs defaultValue="orders" className="space-y-5">
-              <TabsList aria-label="Secciones del perfil vendedor" className="grid h-auto w-full grid-cols-3 rounded-xl border border-border bg-surface p-1">
-                <TabsTrigger value="orders" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+              <TabsList aria-label="Secciones del perfil vendedor" className="grid !h-14 w-full grid-cols-3 items-stretch rounded-xl border border-border bg-surface p-1 pb-3">
+                <TabsTrigger value="orders" className="h-auto min-h-10 gap-2 rounded-lg after:hidden data-active:bg-brand-50 data-active:text-brand-700">
                   <Truck className="h-4 w-4" />
                   Pedidos
                 </TabsTrigger>
-                <TabsTrigger value="products" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+                <TabsTrigger value="products" className="h-auto min-h-10 gap-2 rounded-lg after:hidden data-active:bg-brand-50 data-active:text-brand-700">
                   <Package className="h-4 w-4" />
                   Productos
                 </TabsTrigger>
-                <TabsTrigger value="store" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+                <TabsTrigger value="store" className="h-auto min-h-10 gap-2 rounded-lg after:hidden data-active:bg-brand-50 data-active:text-brand-700">
                   <Store className="h-4 w-4" />
                   Mi tienda
                 </TabsTrigger>
