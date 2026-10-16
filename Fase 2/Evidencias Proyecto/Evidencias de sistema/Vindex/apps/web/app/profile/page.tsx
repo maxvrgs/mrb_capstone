@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Package, ShoppingBag, Store, Truck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { createClient } from "@/lib/supabase/client";
@@ -16,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/components/ToastProvider";
 import { CHILE_LOCATIONS } from "@/lib/chile-locations";
 import SellerStores from "@/components/profile/SellerStores";
@@ -205,7 +207,6 @@ export default function ProfilePage() {
       }
 
       setProfileError(null);
-      showToast("Tus datos y dirección se guardaron correctamente.", "success");
     } catch (error) {
       const message = error instanceof Error ? error.message : "Error desconocido";
       showToast(`No se pudo guardar tu perfil: ${message}`, "error");
@@ -351,57 +352,73 @@ export default function ProfilePage() {
   };
 
   return (
-    <div className="container mx-auto max-w-6xl px-4 py-8">
+    <div className="container-site max-w-5xl py-8 sm:py-12">
       <div className="mb-6">
-        <h1 className="text-3xl font-bold tracking-tight text-foreground">Mi Cuenta</h1>
-        <p className="text-sm text-muted-foreground">
-          Administra tus datos personales, direcciones de despacho y tiendas activas.
+        <p className="eyebrow">Tu espacio Vindex</p>
+        <h1 className="mt-1 text-3xl font-extrabold tracking-tight text-foreground">Mi cuenta</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Administra tus datos, compras y publicaciones desde un solo lugar.
         </p>
       </div>
 
       {profileLoading ? (
         <p role="status" className="text-sm text-muted-foreground">Cargando tu perfil...</p>
       ) : (
-        <p className="mb-6 text-sm text-muted-foreground">Sesión iniciada como {email}</p>
-      )}
-      {profileError && <p role="alert" className="mb-4 text-sm text-red-700">{profileError}</p>}
-
-      {!profileLoading && <div className="grid grid-cols-1 gap-8 md:grid-cols-4">
-        {/* COLUMNA IZQUIERDA: Selector de Rol / Modo */}
-        <div className="space-y-4 md:col-span-1">
-          <Card className="border-slate-800 bg-slate-50 backdrop-blur">
-            <CardHeader className="pb-3">
-              <CardTitle className="text-base text-neutral-800">Tipo de Perfil</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-2">
-              <Button
-                variant={activeRole === "buyer" ? "default" : "ghost"}
-                className={`w-full justify-start ${
-                  activeRole === "buyer" ? "bg-brand-400 hover:bg-brand-600 text-white" : "text-slate-800 hover:bg-brand-800 hover:text-white"
-                }`}
+        <>
+          <section className="mb-6 flex flex-col gap-4 rounded-2xl border border-border bg-surface p-4 shadow-card sm:flex-row sm:items-center sm:justify-between sm:p-5" aria-label="Resumen de cuenta">
+            <div className="flex min-w-0 items-center gap-4">
+              <div aria-hidden="true" className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-brand-50 text-lg font-bold text-brand-700">
+                {`${firstName.charAt(0)}${lastName.charAt(0)}`.trim() || <UserRound className="h-6 w-6" />}
+              </div>
+              <div className="min-w-0">
+                <h2 className="truncate text-lg font-bold text-foreground">
+                  {[firstName, lastName].filter(Boolean).join(" ") || "Tu perfil"}
+                </h2>
+                <p className="truncate text-sm text-muted-foreground">{email}</p>
+              </div>
+            </div>
+            <div role="group" aria-label="Cambiar tipo de perfil" className="flex rounded-xl bg-muted p-1">
+              <button
+                type="button"
+                aria-pressed={activeRole === "buyer"}
                 onClick={() => setActiveRole("buyer")}
-              >
-                Perfil Comprador
-              </Button>
-
-              <Button
-                variant={activeRole === "seller" ? "default" : "ghost"}
-                className={`w-full justify-start ${
-                  activeRole === "seller" ? "bg-brand-400 hover:bg-brand-600 text-white" : "text-slate-800 hover:bg-brand-800 hover:text-white"
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 sm:flex-none ${
+                  activeRole === "buyer" ? "bg-surface text-brand-700 shadow-sm" : "text-muted-foreground hover:text-foreground"
                 }`}
-                onClick={() => setActiveRole("seller")}
               >
-                Perfil Vendedor
-              </Button>
-            </CardContent>
-          </Card>
-        </div>
+                <ShoppingBag className="h-4 w-4" />
+                Comprador
+              </button>
+              <button
+                type="button"
+                aria-pressed={activeRole === "seller"}
+                onClick={() => setActiveRole("seller")}
+                className={`inline-flex flex-1 items-center justify-center gap-2 rounded-lg px-4 py-2.5 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-600 sm:flex-none ${
+                  activeRole === "seller" ? "bg-surface text-brand-700 shadow-sm" : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Store className="h-4 w-4" />
+                Vendedor
+              </button>
+            </div>
+          </section>
 
-        {/* COLUMNA DERECHA: Contenido Principal */}
-        <div className="space-y-6 md:col-span-3">
+          {profileError && <p role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-800">{profileError}</p>}
+
           {/* MODO COMPRADOR: Datos de Usuario y Dirección */}
           {activeRole === "buyer" && (
-            <>
+            <Tabs defaultValue="account" className="space-y-5">
+              <TabsList aria-label="Secciones del perfil comprador" className="grid h-auto w-full grid-cols-2 rounded-xl border border-border bg-surface p-1">
+                <TabsTrigger value="account" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+                  <UserRound className="h-4 w-4" />
+                  Datos y despacho
+                </TabsTrigger>
+                <TabsTrigger value="purchases" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+                  <ShoppingBag className="h-4 w-4" />
+                  Mis compras
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="account" className="space-y-6">
             <form onSubmit={handleSaveProfile} className="space-y-6">
               {/* Información Personal */}
               <Card className="border-border bg-surface">
@@ -460,7 +477,7 @@ export default function ProfilePage() {
                       </Select>
                     </div>
                     <div className="space-y-2">
-                      <Label htmlFor="city">Ciudad</Label>
+                      <Label htmlFor="city">Provincia</Label>
                       <Select
                         id="city"
                         value={city}
@@ -471,7 +488,7 @@ export default function ProfilePage() {
                         disabled={!region}
                         required
                       >
-                        <option value="">Selecciona una ciudad</option>
+                        <option value="">Selecciona una provincia</option>
                         {cities.map((location) => (
                           <option key={location.name} value={location.name}>{location.name}</option>
                         ))}
@@ -536,15 +553,35 @@ export default function ProfilePage() {
                 </CardContent>
               </Card>
             </form>
-            <BuyerPurchases />
-            </>
+              </TabsContent>
+              <TabsContent value="purchases">
+                <BuyerPurchases />
+              </TabsContent>
+            </Tabs>
           )}
 
-          {/* ´Perfil Vendedor */}
+          {/* Perfil vendedor */}
           {activeRole === "seller" && (
-            <div className="space-y-6">
-              <SellerPickupOrders />
-              <Card className="border-slate-200 bg-surface">
+            <Tabs defaultValue="orders" className="space-y-5">
+              <TabsList aria-label="Secciones del perfil vendedor" className="grid h-auto w-full grid-cols-3 rounded-xl border border-border bg-surface p-1">
+                <TabsTrigger value="orders" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+                  <Truck className="h-4 w-4" />
+                  Pedidos
+                </TabsTrigger>
+                <TabsTrigger value="products" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+                  <Package className="h-4 w-4" />
+                  Productos
+                </TabsTrigger>
+                <TabsTrigger value="store" className="min-h-10 gap-2 rounded-lg data-active:bg-brand-50 data-active:text-brand-700">
+                  <Store className="h-4 w-4" />
+                  Mi tienda
+                </TabsTrigger>
+              </TabsList>
+              <TabsContent value="orders">
+                <SellerPickupOrders />
+              </TabsContent>
+              <TabsContent value="products">
+              <Card className="border-border bg-surface">
                 <CardHeader>
                   <CardTitle className="text-lg text-foreground">Mis productos publicados</CardTitle>
                   <CardDescription className="text-muted-foreground">
@@ -682,12 +719,14 @@ export default function ProfilePage() {
                   )}
                 </CardContent>
               </Card>
-
-              <SellerStores />
-            </div>
+              </TabsContent>
+              <TabsContent value="store">
+                <SellerStores />
+              </TabsContent>
+            </Tabs>
           )}
-        </div>
-      </div>}
+        </>
+      )}
     </div>
   );
 }
