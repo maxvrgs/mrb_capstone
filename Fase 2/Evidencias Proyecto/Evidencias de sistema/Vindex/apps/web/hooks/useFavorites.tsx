@@ -157,7 +157,6 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
       return false;
     }
 
-    showToast("Producto quitado de favoritos.", "success");
     return true;
   }, [showToast, supabase, userId]);
 
@@ -176,7 +175,6 @@ export function FavoritesProvider({ children }: { children: ReactNode }) {
     }
 
     setFavoriteCount((current) => Math.max(0, current - 1));
-    showToast("Favorito quitado de tu lista.", "success");
     return true;
   }, [showToast, supabase, userId]);
 

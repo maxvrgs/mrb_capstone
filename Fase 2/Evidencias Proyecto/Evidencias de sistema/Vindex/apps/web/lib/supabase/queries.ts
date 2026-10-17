@@ -48,6 +48,7 @@ export async function getFeaturedProducts(): Promise<ProductListing[]> {
 		.eq("is_featured", true)
 		.gt("featured_until", now)
 		.eq("status", true)
+		.gt("stock", 0)
 		.limit(6);
 
 	if (error) {
@@ -67,6 +68,7 @@ export async function getDailyDeals(): Promise<ProductListing[]> {
 		.not("discount_price", "is", null)
 		.gt("offer_ends_at", now)
 		.eq("status", true)
+		.gt("stock", 0)
 		.order("offer_ends_at", { ascending: true });
 
 	if (error) {
@@ -101,6 +103,7 @@ export async function getAllPublishedProducts(): Promise<ProductListing[]> {
 		.from("products")
 		.select("*")
 		.eq("status", true)
+		.gt("stock", 0)
 		.order("created_at", { ascending: false });
 
 	if (error) {
@@ -215,6 +218,7 @@ export async function getActiveAuctions(): Promise<AuctionProduct[]> {
 		`)
 		.eq("sale_type", "auction")
 		.eq("status", true)
+		.gt("stock", 0)
 		.gt("auction_ends_at", new Date().toISOString())
 		.order("auction_ends_at", { ascending: true });
 

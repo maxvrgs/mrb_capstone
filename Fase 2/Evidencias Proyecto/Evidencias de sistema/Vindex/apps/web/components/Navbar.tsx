@@ -165,18 +165,19 @@ export default function Navbar() {
                   </button>
                   <div className="invisible absolute right-0 top-full z-50 w-48 translate-y-1 rounded-md border border-border bg-surface p-1 opacity-0 shadow-lg transition group-hover:visible group-hover:translate-y-0 group-hover:opacity-100 group-focus-within:visible group-focus-within:translate-y-0 group-focus-within:opacity-100 data-[menu-open=true]:visible data-[menu-open=true]:translate-y-0 data-[menu-open=true]:opacity-100">
                     <Link
+                      href="/profile"
+                      className="block rounded px-3 py-2 text-sm text-foreground transition hover:bg-brand-50 hover:text-brand-700"
+                    >
+                      Mi perfil
+                    </Link>
+                    <Link
                       href="/messages"
                       className="flex items-center gap-2 rounded px-3 py-2 text-sm text-foreground transition hover:bg-brand-50 hover:text-brand-700"
                     >
                       <IconMessageCircle className="h-4 w-4" />
                       Mensajes
                     </Link>
-                    <Link
-                      href="/profile"
-                      className="block rounded px-3 py-2 text-sm text-foreground transition hover:bg-brand-50 hover:text-brand-700"
-                    >
-                      Mi perfil
-                    </Link>
+                    <div aria-hidden="true" className="mx-2 my-2 border-t border-border" />
                     <button
                       type="button"
                       onClick={handleSignOut}
